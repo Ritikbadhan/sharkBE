@@ -4,14 +4,29 @@ module.exports = {
   create: async (req, res) => {
     try {
       if (!req.user || req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
-      const { name, description, price, stock, images, categoryId } = req.body || {};
+      let { name, description, price, stock, images, categoryId } = req.body || {};
       if (!name || price === undefined) return res.status(400).json({ message: 'name and price are required' });
+
+      // if categoryId is provided but not a valid ObjectId, try looking up by slug or name
+      if (categoryId && !categoryId.match(/^[0-9a-fA-F]{24}$/)) {
+        const Category = require('../models/Category.model');
+        const cat = await Category.findOne({ slug: categoryId }) || await Category.findOne({ name: categoryId });
+        if (cat) {
+          categoryId = cat._id;
+        } else {
+          // leave invalid value and let mongoose validation handle it
+        }
+      }
 
       const product = new Product({ name, description, price, stock, images, categoryId });
       await product.save();
       return res.status(201).json({ message: 'Product created', product });
     } catch (err) {
       console.error('Create product error:', err);
+      // propagate validation messages in response
+      if (err.name === 'ValidationError') {
+        return res.status(400).json({ message: err.message, errors: err.errors });
+      }
       return res.status(500).json({ message: 'Server error' });
     }
   },

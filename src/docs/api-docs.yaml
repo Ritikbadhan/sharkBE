@@ -99,7 +99,6 @@ paths:
       responses:
         '200':
           description: OK
-  /api/products:
     post:
       summary: Create product (admin)
       security:
@@ -113,11 +112,6 @@ paths:
       responses:
         '201':
           description: Created
-    get:
-      summary: List products
-      responses:
-        '200':
-          description: OK
   /api/products/{id}:
     get:
       summary: Get product by id
@@ -533,14 +527,6 @@ paths:
         '200':
           description: OK
 
-  /api/admin/users:
-    get:
-      summary: Admin list users
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: OK
   /api/admin/orders:
     get:
       summary: Admin list orders
@@ -549,6 +535,31 @@ paths:
       responses:
         '200':
           description: OK
+  /api/admin/users:
+    get:
+      summary: List all users (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+  /api/admin/promote:
+    post:
+      summary: Promote user to admin
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+      responses:
+        '200':
+          description: User promoted
   /api/admin/dashboard-stats:
     get:
       summary: Admin dashboard stats
@@ -573,6 +584,21 @@ components:
           type: string
         email:
           type: string
+        role:
+          type: string
+          enum: [user, admin]
+        phone:
+          type: string
+        emailVerified:
+          type: boolean
+        phoneVerified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     Register:
       type: object
       required:
@@ -587,6 +613,10 @@ components:
           format: email
         password:
           type: string
+        phone:
+          type: string
+          description: Optional phone number to store with user
+
     Login:
       type: object
       required:
@@ -617,6 +647,9 @@ components:
           type: string
         phone:
           type: string
+        userId:
+          type: string
+
     CartItem:
       type: object
       properties:
@@ -633,6 +666,16 @@ components:
           type: string
         name:
           type: string
+        slug:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     Product:
       type: object
       properties:
@@ -640,12 +683,31 @@ components:
           type: string
         name:
           type: string
+        description:
+          type: string
         price:
           type: number
+        stock:
+          type: integer
+        images:
+          type: array
+          items:
+            type: string
+        categoryId:
+          type: string
+          description: "ObjectId of category. You may also provide a slug or name and the server will resolve it."
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     Review:
       type: object
       properties:
         id:
+          type: string
+        user:
           type: string
         productId:
           type: string
@@ -655,6 +717,12 @@ components:
           type: string
         body:
           type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     Cart:
       type: object
       properties:
@@ -663,7 +731,15 @@ components:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/Product'
+            type: object
+            properties:
+              productId:
+                type: string
+              quantity:
+                type: integer
+              price:
+                type: number
+
     Order:
       type: object
       properties:
