@@ -1,0 +1,667 @@
+openapi: 3.0.0
+info:
+  title: Ecommerce API
+  version: 1.0.0
+  description: Minimal API docs and schemas for the ecommerce backend
+paths:
+  /api/auth/register:
+    post:
+      summary: Register user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Register'
+      responses:
+        '201':
+          description: Created
+  /api/auth/login:
+    post:
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Login'
+      responses:
+        '200':
+          description: OK
+  /api/auth/logout:
+    post:
+      summary: Logout user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+  /api/auth/me:
+    get:
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+  /api/auth/forgot-password:
+    post:
+      summary: Start password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+      responses:
+        '200':
+          description: Token generated (or email queued)
+  /api/auth/reset-password:
+    post:
+      summary: Reset password using token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Password reset
+  /api/products:
+    get:
+      summary: List products
+      responses:
+        '200':
+          description: OK
+  /api/products:
+    post:
+      summary: Create product (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '201':
+          description: Created
+    get:
+      summary: List products
+      responses:
+        '200':
+          description: OK
+  /api/products/{id}:
+    get:
+      summary: Get product by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+    put:
+      summary: Update product (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '200':
+          description: Updated
+    delete:
+      summary: Delete product (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+
+  /api/cart:
+    get:
+      summary: Get cart for current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+  /api/cart/add:
+    post:
+      summary: Add item to cart
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productId:
+                  type: string
+                quantity:
+                  type: integer
+                price:
+                  type: number
+      responses:
+        '200':
+          description: Item added
+  /api/cart/update:
+    put:
+      summary: Update cart (item quantity or replace items)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productId:
+                  type: string
+                quantity:
+                  type: integer
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CartItem'
+      responses:
+        '200':
+          description: Cart updated
+  /api/cart/remove/{productId}:
+    delete:
+      summary: Remove item from cart
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Item removed
+  /api/cart/clear:
+    delete:
+      summary: Clear cart
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cart cleared
+
+  /api/users/profile:
+    get:
+      summary: Get own profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+    put:
+      summary: Update own profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '200':
+          description: Updated
+    delete:
+      summary: Delete own profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Deleted
+
+  /api/addresses:
+    post:
+      summary: Create address
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Address'
+      responses:
+        '201':
+          description: Created
+    get:
+      summary: List addresses
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+  /api/addresses/{id}:
+    put:
+      summary: Update address
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Address'
+      responses:
+        '200':
+          description: Updated
+    delete:
+      summary: Delete address
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+
+  /api/categories:
+    post:
+      summary: Create category (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Category'
+      responses:
+        '201':
+          description: Created
+    get:
+      summary: List categories (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+  /api/categories/{id}:
+    put:
+      summary: Update category (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Category'
+      responses:
+        '200':
+          description: Updated
+    delete:
+      summary: Delete category (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+
+  /api/reviews:
+    post:
+      summary: Create review (auth)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Review'
+      responses:
+        '201':
+          description: Created
+  /api/reviews/{productId}:
+    get:
+      summary: List reviews for product
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /api/reviews/{id}:
+    delete:
+      summary: Delete review (owner or admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+
+  /api/orders:
+    post:
+      summary: Create order
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+      responses:
+        '201':
+          description: Created
+  /api/orders/my-orders:
+    get:
+      summary: Get current user's orders
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+  /api/orders/{id}:
+    get:
+      summary: Get order by id (owner or admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /api/orders/{id}/status:
+    put:
+      summary: Update order status (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderStatus:
+                  type: string
+                paymentStatus:
+                  type: string
+      responses:
+        '200':
+          description: Updated
+
+  /api/payments/create:
+    post:
+      summary: Create payment session (mock)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                paymentMethod:
+                  type: string
+      responses:
+        '201':
+          description: Payment created
+  /api/payments/verify:
+    post:
+      summary: Verify payment (mock)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                paymentId:
+                  type: string
+      responses:
+        '200':
+          description: Verified
+  /api/payments/{orderId}:
+    get:
+      summary: Get payment status for order
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+
+  /api/admin/users:
+    get:
+      summary: Admin list users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+  /api/admin/orders:
+    get:
+      summary: Admin list orders
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+  /api/admin/dashboard-stats:
+    get:
+      summary: Admin dashboard stats
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+    Register:
+      type: object
+      required:
+        - name
+        - email
+        - password
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    Login:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    Address:
+      type: object
+      properties:
+        id:
+          type: string
+        line1:
+          type: string
+        line2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+        phone:
+          type: string
+    CartItem:
+      type: object
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: integer
+        price:
+          type: number
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+    Review:
+      type: object
+      properties:
+        id:
+          type: string
+        productId:
+          type: string
+        rating:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+    Cart:
+      type: object
+      properties:
+        userId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        total:
+          type: number
+    Payment:
+      type: object
+      properties:
+        paymentId:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        status:
+          type: string
