@@ -1,4 +1,5 @@
 const Review = require('../models/Review.model');
+const mongoose = require('mongoose');
 
 module.exports = {
   create: async (req, res) => {
@@ -6,6 +7,7 @@ module.exports = {
       if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
       const { productId, rating, title, body } = req.body || {};
       if (!productId || rating === undefined) return res.status(400).json({ message: 'productId and rating are required' });
+      if (!mongoose.Types.ObjectId.isValid(productId)) return res.status(400).json({ message: 'Invalid productId' });
 
       const review = new Review({ user: req.user._id, productId, rating, title, body });
       await review.save();

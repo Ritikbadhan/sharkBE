@@ -4,7 +4,10 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { sendEmail } = require('../services/email.service');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'replace_this_with_a_strong_secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is required');
+}
 
 function safeUser(user) {
   const obj = user.toObject ? user.toObject() : { ...user };
@@ -13,6 +16,8 @@ function safeUser(user) {
   delete obj.smsVerificationExpires;
   delete obj.emailVerificationCode;
   delete obj.emailVerificationExpires;
+  delete obj.resetPasswordToken;
+  delete obj.resetPasswordExpires;
   return obj;
 }
 
@@ -125,16 +130,29 @@ module.exports = {
       const user = await User.findOne({ email: email.toLowerCase() });
       if (!user) {
         // Do not reveal that the email does not exist
-        return res.status(200).json({ message: 'If that email exists, a reset token was generated' });
+        return res.status(200).json({ message: 'If that email exists, password reset instructions were sent' });
       }
 
-      const token = crypto.randomBytes(20).toString('hex');
-      user.resetPasswordToken = token;
+      const token = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      user.resetPasswordToken = tokenHash;
       user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
       await user.save();
 
-      // In production, send `token` via email to the user. For now, return it in response for testing.
-      return res.status(200).json({ message: 'Reset token generated', resetToken: token });
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const resetLink = `${frontendUrl.replace(/\/$/, '')}/reset-password?token=${token}`;
+
+      try {
+        await sendEmail(
+          user.email,
+          'Password reset instructions',
+          `Reset your password using this link: ${resetLink}`,
+        );
+      } catch (emailErr) {
+        console.warn('Failed to send reset password email:', emailErr.message || emailErr);
+      }
+
+      return res.status(200).json({ message: 'If that email exists, password reset instructions were sent' });
     } catch (err) {
       console.error('Forgot password error:', err);
       return res.status(500).json({ message: 'Server error' });
@@ -146,7 +164,8 @@ module.exports = {
       const { token, password } = req.body || {};
       if (!token || !password) return res.status(400).json({ message: 'token and password are required' });
 
-      const user = await User.findOne({ resetPasswordToken: token, resetPasswordExpires: { $gt: Date.now() } });
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const user = await User.findOne({ resetPasswordToken: tokenHash, resetPasswordExpires: { $gt: Date.now() } });
       if (!user) return res.status(400).json({ message: 'Invalid or expired reset token' });
 
       const salt = await bcrypt.genSalt(10);

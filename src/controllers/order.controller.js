@@ -1,17 +1,55 @@
 const Order = require('../models/Order.model');
+const Product = require('../models/Product.model');
+const mongoose = require('mongoose');
+
+function parseQuantity(value) {
+  const qty = Number(value);
+  return Number.isFinite(qty) ? Math.floor(qty) : NaN;
+}
 
 module.exports = {
   create: async (req, res) => {
     try {
       if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
-      const { items, shippingAddress, paymentMethod, totalAmount, paymentId } = req.body || {};
+      const { items, shippingAddress, paymentMethod, paymentId } = req.body || {};
       if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'Order items required' });
       if (!paymentMethod) return res.status(400).json({ message: 'paymentMethod required' });
-      if (totalAmount === undefined) return res.status(400).json({ message: 'totalAmount required' });
+
+      const normalized = items.map((it) => ({
+        productId: it && it.productId,
+        quantity: parseQuantity(it && it.quantity),
+      }));
+      if (normalized.some((it) => !it.productId || !it.quantity || it.quantity < 1)) {
+        return res.status(400).json({ message: 'Each item must contain productId and a positive integer quantity' });
+      }
+      if (normalized.some((it) => !mongoose.Types.ObjectId.isValid(it.productId))) {
+        return res.status(400).json({ message: 'One or more productIds are invalid' });
+      }
+
+      const productIds = [...new Set(normalized.map((it) => it.productId.toString()))];
+      const products = await Product.find({ _id: { $in: productIds } }).select('_id name price images');
+      if (products.length !== productIds.length) {
+        return res.status(400).json({ message: 'One or more products are invalid' });
+      }
+
+      const productById = new Map(products.map((p) => [p._id.toString(), p]));
+      let totalAmount = 0;
+      const trustedItems = normalized.map((it) => {
+        const product = productById.get(it.productId.toString());
+        const linePrice = product.price;
+        totalAmount += linePrice * it.quantity;
+        return {
+          productId: product._id,
+          name: product.name,
+          quantity: it.quantity,
+          price: linePrice,
+          image: Array.isArray(product.images) && product.images.length ? product.images[0] : undefined,
+        };
+      });
 
       const order = new Order({
         userId: req.user._id,
-        items,
+        items: trustedItems,
         shippingAddress,
         paymentMethod,
         totalAmount,
@@ -39,6 +77,7 @@ module.exports = {
   getById: async (req, res) => {
     try {
       const { id } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid id' });
       const order = await Order.findById(id).populate('userId', 'name email');
       if (!order) return res.status(404).json({ message: 'Order not found' });
       // allow owner or admin
@@ -56,6 +95,7 @@ module.exports = {
     try {
       if (!req.user || req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
       const { id } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid id' });
       const { orderStatus, paymentStatus } = req.body || {};
       const order = await Order.findById(id);
       if (!order) return res.status(404).json({ message: 'Order not found' });

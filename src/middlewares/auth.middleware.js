@@ -1,7 +1,10 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User.model');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'replace_this_with_a_strong_secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is required');
+}
 
 module.exports = async (req, res, next) => {
   try {

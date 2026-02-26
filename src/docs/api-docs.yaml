@@ -1,21 +1,23 @@
 openapi: 3.0.0
 info:
   title: Ecommerce API
-  version: 1.0.0
-  description: Minimal API docs and schemas for the ecommerce backend
+  version: 1.1.0
+  description: API docs for the ecommerce backend
+
 paths:
   /api/auth/register:
     post:
-      summary: Register user (sends Email OTP)
+      summary: Register user (sends email OTP)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Register'
+              $ref: '#/components/schemas/RegisterRequest'
       responses:
         '201':
-          description: Created (verification code sent)
+          description: User registered
+
   /api/auth/verify-email:
     post:
       summary: Verify email using OTP
@@ -25,14 +27,17 @@ paths:
           application/json:
             schema:
               type: object
+              required: [email, code]
               properties:
                 email:
                   type: string
+                  format: email
                 code:
                   type: string
       responses:
         '200':
           description: Email verified
+
   /api/auth/login:
     post:
       summary: Login user
@@ -41,10 +46,11 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Login'
+              $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
-          description: OK
+          description: Login successful
+
   /api/auth/logout:
     post:
       summary: Logout user
@@ -52,7 +58,8 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: OK
+          description: Logout successful
+
   /api/auth/me:
     get:
       summary: Get current user
@@ -60,7 +67,8 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: OK
+          description: Current user
+
   /api/auth/forgot-password:
     post:
       summary: Start password reset
@@ -70,12 +78,15 @@ paths:
           application/json:
             schema:
               type: object
+              required: [email]
               properties:
                 email:
                   type: string
+                  format: email
       responses:
         '200':
-          description: Token generated (or email queued)
+          description: If the email exists, password reset instructions were sent
+
   /api/auth/reset-password:
     post:
       summary: Reset password using token
@@ -85,6 +96,7 @@ paths:
           application/json:
             schema:
               type: object
+              required: [token, password]
               properties:
                 token:
                   type: string
@@ -93,12 +105,23 @@ paths:
       responses:
         '200':
           description: Password reset
+
   /api/products:
     get:
       summary: List products
+      parameters:
+        - in: query
+          name: category
+          schema:
+            type: string
+          description: Category ObjectId
+        - in: query
+          name: q
+          schema:
+            type: string
       responses:
         '200':
-          description: OK
+          description: Product list
     post:
       summary: Create product (admin)
       security:
@@ -108,54 +131,43 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Product'
+              $ref: '#/components/schemas/ProductUpsertRequest'
       responses:
         '201':
-          description: Created
+          description: Product created
+
   /api/products/{id}:
     get:
       summary: Get product by id
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ObjectIdParam'
       responses:
         '200':
-          description: OK
+          description: Product found
     put:
       summary: Update product (admin)
       security:
         - bearerAuth: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ObjectIdParam'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Product'
+              $ref: '#/components/schemas/ProductUpsertRequest'
       responses:
         '200':
-          description: Updated
+          description: Product updated
     delete:
       summary: Delete product (admin)
       security:
         - bearerAuth: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ObjectIdParam'
       responses:
         '200':
-          description: Deleted
+          description: Product deleted
 
   /api/cart:
     get:
@@ -164,7 +176,8 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: OK
+          description: Cart
+
   /api/cart/add:
     post:
       summary: Add item to cart
@@ -176,19 +189,20 @@ paths:
           application/json:
             schema:
               type: object
+              required: [productId]
               properties:
                 productId:
                   type: string
                 quantity:
                   type: integer
-                price:
-                  type: number
+                  minimum: 1
       responses:
         '200':
           description: Item added
+
   /api/cart/update:
     put:
-      summary: Update cart (item quantity or replace items)
+      summary: Update cart (single item quantity or replace full items)
       security:
         - bearerAuth: []
       requestBody:
@@ -196,19 +210,11 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                productId:
-                  type: string
-                quantity:
-                  type: integer
-                items:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/CartItem'
+              $ref: '#/components/schemas/CartUpdateRequest'
       responses:
         '200':
           description: Cart updated
+
   /api/cart/remove/{productId}:
     delete:
       summary: Remove item from cart
@@ -223,6 +229,7 @@ paths:
       responses:
         '200':
           description: Item removed
+
   /api/cart/clear:
     delete:
       summary: Clear cart
@@ -239,7 +246,7 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: OK
+          description: Profile
     put:
       summary: Update own profile
       security:
@@ -249,17 +256,17 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/User'
+              $ref: '#/components/schemas/ProfileUpdateRequest'
       responses:
         '200':
-          description: Updated
+          description: Profile updated
     delete:
       summary: Delete own profile
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Deleted
+          description: Profile deleted
 
   /api/addresses:
     post:
@@ -271,52 +278,50 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Address'
+              $ref: '#/components/schemas/AddressRequest'
       responses:
         '201':
-          description: Created
+          description: Address created
     get:
       summary: List addresses
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: OK
+          description: Address list
+
   /api/addresses/{id}:
     put:
       summary: Update address
       security:
         - bearerAuth: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ObjectIdParam'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Address'
+              $ref: '#/components/schemas/AddressRequest'
       responses:
         '200':
-          description: Updated
+          description: Address updated
     delete:
       summary: Delete address
       security:
         - bearerAuth: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ObjectIdParam'
       responses:
         '200':
-          description: Deleted
+          description: Address deleted
 
   /api/categories:
+    get:
+      summary: List active categories (public)
+      responses:
+        '200':
+          description: Category list
     post:
       summary: Create category (admin)
       security:
@@ -326,50 +331,36 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Category'
+              $ref: '#/components/schemas/CategoryRequest'
       responses:
         '201':
-          description: Created
-    get:
-      summary: List categories (admin)
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: OK
+          description: Category created
+
   /api/categories/{id}:
     put:
       summary: Update category (admin)
       security:
         - bearerAuth: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ObjectIdParam'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Category'
+              $ref: '#/components/schemas/CategoryRequest'
       responses:
         '200':
-          description: Updated
+          description: Category updated
     delete:
       summary: Delete category (admin)
       security:
         - bearerAuth: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ObjectIdParam'
       responses:
         '200':
-          description: Deleted
+          description: Category deleted
 
   /api/reviews:
     post:
@@ -381,36 +372,33 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Review'
+              $ref: '#/components/schemas/ReviewRequest'
       responses:
         '201':
-          description: Created
-  /api/reviews/{productId}:
+          description: Review created
+
+  /api/reviews/{id}:
     get:
       summary: List reviews for product
-      parameters:
-        - in: path
-          name: productId
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: OK
-  /api/reviews/{id}:
-    delete:
-      summary: Delete review (owner or admin)
-      security:
-        - bearerAuth: []
       parameters:
         - in: path
           name: id
           required: true
           schema:
             type: string
+          description: Product ObjectId
       responses:
         '200':
-          description: Deleted
+          description: Review list
+    delete:
+      summary: Delete review (owner/admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectIdParam'
+      responses:
+        '200':
+          description: Review deleted
 
   /api/orders:
     post:
@@ -422,10 +410,11 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Order'
+              $ref: '#/components/schemas/OrderCreateRequest'
       responses:
         '201':
-          description: Created
+          description: Order created
+
   /api/orders/my-orders:
     get:
       summary: Get current user's orders
@@ -433,32 +422,26 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: OK
+          description: Order list
+
   /api/orders/{id}:
     get:
-      summary: Get order by id (owner or admin)
+      summary: Get order by id (owner/admin)
       security:
         - bearerAuth: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ObjectIdParam'
       responses:
         '200':
-          description: OK
+          description: Order details
+
   /api/orders/{id}/status:
     put:
       summary: Update order status (admin)
       security:
         - bearerAuth: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ObjectIdParam'
       requestBody:
         required: true
         content:
@@ -472,11 +455,11 @@ paths:
                   type: string
       responses:
         '200':
-          description: Updated
+          description: Order updated
 
   /api/payments/create:
     post:
-      summary: Create payment session (mock)
+      summary: Create payment session
       security:
         - bearerAuth: []
       requestBody:
@@ -485,6 +468,7 @@ paths:
           application/json:
             schema:
               type: object
+              required: [orderId, paymentMethod]
               properties:
                 orderId:
                   type: string
@@ -493,9 +477,11 @@ paths:
       responses:
         '201':
           description: Payment created
+
   /api/payments/verify:
     post:
-      summary: Verify payment (mock)
+      summary: Verify payment using signature
+      description: Signature must be HMAC-SHA256("{orderId}:{paymentId}") with PAYMENT_WEBHOOK_SECRET
       security:
         - bearerAuth: []
       requestBody:
@@ -504,14 +490,18 @@ paths:
           application/json:
             schema:
               type: object
+              required: [orderId, paymentId, signature]
               properties:
                 orderId:
                   type: string
                 paymentId:
                   type: string
+                signature:
+                  type: string
       responses:
         '200':
-          description: Verified
+          description: Payment verified
+
   /api/payments/{orderId}:
     get:
       summary: Get payment status for order
@@ -525,24 +515,35 @@ paths:
             type: string
       responses:
         '200':
-          description: OK
+          description: Payment status
+
+  /api/admin/users:
+    get:
+      summary: List users (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User list
 
   /api/admin/orders:
     get:
-      summary: Admin list orders
+      summary: List orders (admin)
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: OK
-  /api/admin/users:
+          description: Order list
+
+  /api/admin/dashboard-stats:
     get:
-      summary: List all users (admin)
+      summary: Dashboard stats (admin)
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: OK
+          description: Stats
+
   /api/admin/promote:
     post:
       summary: Promote user to admin
@@ -554,85 +555,68 @@ paths:
           application/json:
             schema:
               type: object
+              required: [userId]
               properties:
                 userId:
                   type: string
       responses:
         '200':
           description: User promoted
-  /api/admin/dashboard-stats:
-    get:
-      summary: Admin dashboard stats
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: OK
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-  schemas:
-    User:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        email:
-          type: string
-        role:
-          type: string
-          enum: [user, admin]
-        phone:
-          type: string
-        emailVerified:
-          type: boolean
-        phoneVerified:
-          type: boolean
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-    Register:
-      type: object
-      required:
-        - name
-        - email
-        - password
-      properties:
-        name:
-          type: string
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-        phone:
-          type: string
-          description: Optional phone number to store with user
 
-    Login:
+  parameters:
+    ObjectIdParam:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    RegisterRequest:
       type: object
-      required:
-        - email
-        - password
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        phone:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
       properties:
         email:
           type: string
           format: email
         password:
           type: string
-    Address:
+
+    ProfileUpdateRequest:
       type: object
       properties:
-        id:
+        name:
           type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AddressRequest:
+      type: object
+      properties:
         line1:
           type: string
         line2:
@@ -647,40 +631,20 @@ components:
           type: string
         phone:
           type: string
-        userId:
-          type: string
 
-    CartItem:
+    CategoryRequest:
       type: object
       properties:
-        productId:
-          type: string
-        quantity:
-          type: integer
-        price:
-          type: number
-    Category:
-      type: object
-      properties:
-        id:
-          type: string
         name:
           type: string
         slug:
           type: string
         isActive:
           type: boolean
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-    Product:
+
+    ProductUpsertRequest:
       type: object
       properties:
-        id:
-          type: string
         name:
           type: string
         description:
@@ -690,72 +654,85 @@ components:
         stock:
           type: integer
         images:
-          type: array
-          description: "list of image URLs or paths; when providing a single string it will be normalized to an array"
-          items:
-            type: string
+          oneOf:
+            - type: array
+              items:
+                type: string
+            - type: string
         categoryId:
           type: string
-          description: "ObjectId of category. You may also provide a slug or name and the server will resolve it."
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-    Review:
+          description: ObjectId, slug, or category name
+
+    CartUpdateRequest:
       type: object
       properties:
-        id:
-          type: string
-        user:
-          type: string
         productId:
           type: string
-        rating:
+        quantity:
           type: integer
-        title:
-          type: string
-        body:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-    Cart:
-      type: object
-      properties:
-        userId:
-          type: string
         items:
           type: array
           items:
             type: object
+            required: [productId, quantity]
             properties:
               productId:
                 type: string
               quantity:
                 type: integer
-              price:
-                type: number
+                minimum: 1
 
-    Order:
+    ReviewRequest:
       type: object
+      required: [productId, rating]
       properties:
-        id:
+        productId:
           type: string
-        total:
-          type: number
-    Payment:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        title:
+          type: string
+        body:
+          type: string
+
+    OrderCreateRequest:
       type: object
+      required: [items, paymentMethod]
       properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [productId, quantity]
+            properties:
+              productId:
+                type: string
+              quantity:
+                type: integer
+                minimum: 1
+        shippingAddress:
+          type: object
+          properties:
+            fullName:
+              type: string
+            phone:
+              type: string
+            addressLine1:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            postalCode:
+              type: string
+            country:
+              type: string
+        paymentMethod:
+          type: string
+          enum: [COD, RAZORPAY, STRIPE]
         paymentId:
           type: string
-        amount:
-          type: number
-        currency:
-          type: string
-        status:
-          type: string
+          description: Optional external payment ID

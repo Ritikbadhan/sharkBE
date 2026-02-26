@@ -1,6 +1,7 @@
 const User = require('../models/User.model');
 const Order = require('../models/Order.model');
 const Product = require('../models/Product.model');
+const mongoose = require('mongoose');
 
 module.exports = {
   listUsers: async (req, res) => {
@@ -52,6 +53,7 @@ module.exports = {
       if (!req.user || req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
       const { userId } = req.body || {};
       if (!userId) return res.status(400).json({ message: 'userId is required' });
+      if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ message: 'Invalid userId' });
 
       const user = await User.findById(userId);
       if (!user) return res.status(404).json({ message: 'User not found' });

@@ -6,5 +6,6 @@ const auth = require('../middlewares/auth.middleware');
 router.get('/users', auth, adminCtrl.listUsers);
 router.get('/orders', auth, adminCtrl.listOrders);
 router.get('/dashboard-stats', auth, adminCtrl.dashboardStats);
+router.post('/promote', auth, adminCtrl.promoteUser);
 
 module.exports = router;

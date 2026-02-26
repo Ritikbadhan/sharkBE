@@ -1,4 +1,5 @@
 const Product = require('../models/Product.model');
+const mongoose = require('mongoose');
 
 module.exports = {
   create: async (req, res) => {
@@ -12,13 +13,13 @@ module.exports = {
       if (!name || price === undefined) return res.status(400).json({ message: 'name and price are required' });
 
       // if categoryId is provided but not a valid ObjectId, try looking up by slug or name
-      if (categoryId && !categoryId.match(/^[0-9a-fA-F]{24}$/)) {
+      if (categoryId && !mongoose.Types.ObjectId.isValid(categoryId)) {
         const Category = require('../models/Category.model');
         const cat = await Category.findOne({ slug: categoryId }) || await Category.findOne({ name: categoryId });
         if (cat) {
           categoryId = cat._id;
         } else {
-          // leave invalid value and let mongoose validation handle it
+          return res.status(400).json({ message: 'Invalid categoryId' });
         }
       }
 
@@ -39,7 +40,12 @@ module.exports = {
     try {
       const { category, q } = req.query || {};
       const filter = {};
-      if (category) filter.categoryId = category;
+      if (category) {
+        if (!mongoose.Types.ObjectId.isValid(category)) {
+          return res.status(400).json({ message: 'Invalid category query parameter' });
+        }
+        filter.categoryId = category;
+      }
       if (q) filter.name = { $regex: q, $options: 'i' };
 
       const products = await Product.find(filter).sort({ createdAt: -1 });
@@ -70,6 +76,9 @@ module.exports = {
       if (!product) return res.status(404).json({ message: 'Product not found' });
 
       const updatable = ['name', 'description', 'price', 'stock', 'images', 'categoryId'];
+      if (req.body.categoryId !== undefined && req.body.categoryId !== null && !mongoose.Types.ObjectId.isValid(req.body.categoryId)) {
+        return res.status(400).json({ message: 'Invalid categoryId' });
+      }
       updatable.forEach((f) => {
         if (req.body[f] !== undefined) {
           // coerce images to array when updating
