@@ -4,6 +4,7 @@ const authCtrl = require('../controllers/auth.controller');
 const auth = require('../middlewares/auth.middleware');
 
 router.post('/register', authCtrl.register);
+router.post('/verify-email', authCtrl.verifyEmail);
 router.post('/login', authCtrl.login);
 router.post('/logout', auth, authCtrl.logout);
 router.get('/me', auth, authCtrl.me);

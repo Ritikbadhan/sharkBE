@@ -2,19 +2,24 @@ const User = require('../models/User.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { sendEmail } = require('../services/email.service');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'replace_this_with_a_strong_secret';
 
 function safeUser(user) {
   const obj = user.toObject ? user.toObject() : { ...user };
   delete obj.passwordHash;
+  delete obj.smsVerificationCode;
+  delete obj.smsVerificationExpires;
+  delete obj.emailVerificationCode;
+  delete obj.emailVerificationExpires;
   return obj;
 }
 
 module.exports = {
   register: async (req, res) => {
     try {
-      const { name, email, password } = req.body || {};
+      const { name, email, password, phone } = req.body || {};
 
       if (!name || !email || !password) {
         return res.status(400).json({ message: 'name, email and password are required' });
@@ -28,8 +33,31 @@ module.exports = {
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(password, salt);
 
-      const user = new User({ name, email: email.toLowerCase(), passwordHash });
+      // generate 6-digit Email verification code
+      const emailCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const emailExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+      const user = new User({
+        name,
+        email: email.toLowerCase(),
+        passwordHash,
+        phone: phone || undefined,
+        emailVerificationCode: emailCode,
+        emailVerificationExpires: emailExpires,
+        emailVerified: false,
+      });
       await user.save();
+
+      // send email OTP
+      try {
+        await sendEmail(
+          user.email,
+          'Your verification code',
+          `Your email verification code is ${emailCode}`,
+        );
+      } catch (emailErr) {
+        console.warn('Failed to send verification email:', emailErr.message || emailErr);
+      }
 
       return res.status(201).json({ message: 'User registered', user: safeUser(user) });
     } catch (err) {
@@ -49,6 +77,9 @@ module.exports = {
       const user = await User.findOne({ email: email.toLowerCase() });
       if (!user) {
         return res.status(401).json({ message: 'Invalid credentials' });
+      }
+      if (!user.emailVerified) {
+        return res.status(401).json({ message: 'Please verify your email before logging in' });
       }
 
       const match = await bcrypt.compare(password, user.passwordHash);
@@ -127,6 +158,33 @@ module.exports = {
       return res.status(200).json({ message: 'Password has been reset' });
     } catch (err) {
       console.error('Reset password error:', err);
+      return res.status(500).json({ message: 'Server error' });
+    }
+  },
+  verifyEmail: async (req, res) => {
+    try {
+      const { email, code } = req.body || {};
+      if (!email || !code) return res.status(400).json({ message: 'email and code are required' });
+
+      const user = await User.findOne({ email: email.toLowerCase() });
+      if (!user) return res.status(404).json({ message: 'User not found' });
+
+      if (!user.emailVerificationCode || !user.emailVerificationExpires || user.emailVerificationExpires < Date.now()) {
+        return res.status(400).json({ message: 'Invalid or expired verification code' });
+      }
+
+      if (user.emailVerificationCode !== code) {
+        return res.status(400).json({ message: 'Invalid verification code' });
+      }
+
+      user.emailVerified = true;
+      user.emailVerificationCode = undefined;
+      user.emailVerificationExpires = undefined;
+      await user.save();
+
+      return res.status(200).json({ message: 'Email has been verified' });
+    } catch (err) {
+      console.error('Verify email error:', err);
       return res.status(500).json({ message: 'Server error' });
     }
   },

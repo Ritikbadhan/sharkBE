@@ -6,7 +6,7 @@ info:
 paths:
   /api/auth/register:
     post:
-      summary: Register user
+      summary: Register user (sends Email OTP)
       requestBody:
         required: true
         content:
@@ -15,7 +15,24 @@ paths:
               $ref: '#/components/schemas/Register'
       responses:
         '201':
-          description: Created
+          description: Created (verification code sent)
+  /api/auth/verify-email:
+    post:
+      summary: Verify email using OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                code:
+                  type: string
+      responses:
+        '200':
+          description: Email verified
   /api/auth/login:
     post:
       summary: Login user
