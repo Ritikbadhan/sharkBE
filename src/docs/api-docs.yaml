@@ -691,6 +691,7 @@ components:
           type: integer
         images:
           type: array
+          description: "list of image URLs or paths; when providing a single string it will be normalized to an array"
           items:
             type: string
         categoryId:

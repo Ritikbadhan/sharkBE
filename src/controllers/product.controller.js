@@ -5,6 +5,10 @@ module.exports = {
     try {
       if (!req.user || req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
       let { name, description, price, stock, images, categoryId } = req.body || {};
+      // ensure images is always an array when present (frontend might send a single string)
+      if (images && !Array.isArray(images)) {
+        images = [images];
+      }
       if (!name || price === undefined) return res.status(400).json({ message: 'name and price are required' });
 
       // if categoryId is provided but not a valid ObjectId, try looking up by slug or name
@@ -67,7 +71,14 @@ module.exports = {
 
       const updatable = ['name', 'description', 'price', 'stock', 'images', 'categoryId'];
       updatable.forEach((f) => {
-        if (req.body[f] !== undefined) product[f] = req.body[f];
+        if (req.body[f] !== undefined) {
+          // coerce images to array when updating
+          if (f === 'images' && req.body.images && !Array.isArray(req.body.images)) {
+            product.images = [req.body.images];
+          } else {
+            product[f] = req.body[f];
+          }
+        }
       });
 
       await product.save();

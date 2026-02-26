@@ -39,7 +39,7 @@ This is a minimal Node.js/Express backend for an ecommerce application. It uses 
 - **Categories & products**:
   - There is a `categories` collection. Admins can create categories separately (e.g. via custom admin endpoint or manually in database).
   - When creating/updating a product, `categoryId` should point to an existing category. For convenience, you may pass the category slug or name instead of the raw ObjectId; server will resolve it automatically. If no category exists, the value may be any string but it won't be linked.
-  - The product schema allows `name`, `description`, `price`, `stock`, `images` array and optional `categoryId`. The example payload in Swagger reflects all fields.
+  - The product schema allows `name`, `description`, `price`, `stock`, an **array of image URLs** (multiple images can be provided; a single string will be coerced into an array) and optional `categoryId`. The example payload in Swagger reflects all fields.
 
 - **Admin flow**:
   1. Create an account and verify email.
