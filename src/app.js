@@ -11,6 +11,24 @@ const app = express();
 
 app.use(express.json());
 
+// CORS
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3001')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use((req, res, next) => {
+  const requestOrigin = req.headers.origin;
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+  }
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  return next();
+});
+
 // Swagger UI
 try {
 	const swaggerDocument = YAML.load(path.join(__dirname, 'docs', 'api-docs.yaml'));

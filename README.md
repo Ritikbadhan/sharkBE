@@ -13,6 +13,7 @@ Node.js/Express backend for an ecommerce application using MongoDB (Mongoose).
    MONGO_URI=...
    PORT=3000
    JWT_SECRET=secure-secret
+   CORS_ORIGIN=http://localhost:3001
 
    # payment verification secret (required for /api/payments/verify)
    PAYMENT_WEBHOOK_SECRET=replace-with-strong-secret
