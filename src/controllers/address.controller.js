@@ -1,24 +1,48 @@
 const Address = require('../models/Address.model');
+const { toAddressResponse } = require('../utils/serializers');
 
 module.exports = {
   create: async (req, res) => {
     try {
       if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
-      const { line1, line2, city, state, postalCode, country, phone } = req.body || {};
-      if (!line1 || !city || !country) return res.status(400).json({ message: 'line1, city and country are required' });
-
-      const address = new Address({
-        user: req.user._id,
+      const {
+        name,
+        phone,
         line1,
         line2,
         city,
         state,
-        postalCode,
-        country,
-        phone
+        pincode,
+        landmark,
+        instructions,
+        isDefault
+      } = req.body || {};
+
+      if (!line1 || !city) {
+        return res.status(400).json({ message: 'line1 and city are required' });
+      }
+
+      if (isDefault) {
+        await Address.updateMany({ user: req.user._id }, { $set: { isDefault: false } });
+      }
+
+      const address = new Address({
+        user: req.user._id,
+        name,
+        phone,
+        line1,
+        line2,
+        city,
+        state,
+        pincode,
+        postalCode: pincode,
+        landmark,
+        instructions,
+        isDefault: Boolean(isDefault)
       });
+
       await address.save();
-      return res.status(201).json({ message: 'Address created', address });
+      return res.status(201).json({ message: 'Address created', address: toAddressResponse(address) });
     } catch (err) {
       console.error('Create address error:', err);
       return res.status(500).json({ message: 'Server error' });
@@ -28,8 +52,8 @@ module.exports = {
   list: async (req, res) => {
     try {
       if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
-      const addresses = await Address.find({ user: req.user._id }).sort({ createdAt: -1 });
-      return res.status(200).json({ addresses });
+      const addresses = await Address.find({ user: req.user._id }).sort({ isDefault: -1, createdAt: -1 });
+      return res.status(200).json({ addresses: addresses.map((a) => toAddressResponse(a)) });
     } catch (err) {
       console.error('List addresses error:', err);
       return res.status(500).json({ message: 'Server error' });
@@ -40,22 +64,22 @@ module.exports = {
     try {
       if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
       const { id } = req.params;
-      const { line1, line2, city, state, postalCode, country, phone } = req.body || {};
-
       const address = await Address.findById(id);
       if (!address) return res.status(404).json({ message: 'Address not found' });
       if (address.user.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'Forbidden' });
 
-      if (line1 !== undefined) address.line1 = line1;
-      if (line2 !== undefined) address.line2 = line2;
-      if (city !== undefined) address.city = city;
-      if (state !== undefined) address.state = state;
-      if (postalCode !== undefined) address.postalCode = postalCode;
-      if (country !== undefined) address.country = country;
-      if (phone !== undefined) address.phone = phone;
+      const fields = ['name', 'phone', 'line1', 'line2', 'city', 'state', 'pincode', 'landmark', 'instructions', 'isDefault'];
+      fields.forEach((field) => {
+        if (req.body[field] !== undefined) address[field] = req.body[field];
+      });
+
+      if (req.body.pincode !== undefined) address.postalCode = req.body.pincode;
+      if (req.body.isDefault) {
+        await Address.updateMany({ user: req.user._id, _id: { $ne: address._id } }, { $set: { isDefault: false } });
+      }
 
       await address.save();
-      return res.status(200).json({ message: 'Address updated', address });
+      return res.status(200).json({ message: 'Address updated', address: toAddressResponse(address) });
     } catch (err) {
       console.error('Update address error:', err);
       return res.status(500).json({ message: 'Server error' });

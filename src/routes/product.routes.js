@@ -7,6 +7,7 @@ const validateObjectId = require('../middlewares/validateObjectId.middleware');
 
 router.post('/', auth, productCtrl.create);
 router.get('/', productCtrl.list);
+router.get('/trending', productCtrl.trending);
 router.get('/:id', validateObjectId('id'), productCtrl.get);
 router.put('/:id', auth, validateObjectId('id'), productCtrl.update);
 router.delete('/:id', auth, validateObjectId('id'), productCtrl.delete);

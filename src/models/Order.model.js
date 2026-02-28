@@ -1,27 +1,36 @@
 const mongoose = require("mongoose");
 
-const orderItemSchema = new mongoose.Schema({
-  productId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Product",
-    required: true
+const orderItemSchema = new mongoose.Schema(
+  {
+    productId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true
+    },
+    name: {
+      type: String,
+      required: true
+    },
+    quantity: {
+      type: Number,
+      required: true
+    },
+    size: {
+      type: String
+    },
+    color: {
+      type: String
+    },
+    price: {
+      type: Number,
+      required: true
+    },
+    image: {
+      type: String
+    }
   },
-  name: {
-    type: String,
-    required: true
-  },
-  quantity: {
-    type: Number,
-    required: true
-  },
-  price: {
-    type: Number,
-    required: true
-  },
-  image: {
-    type: String
-  }
-});
+  { _id: false }
+);
 
 const orderSchema = new mongoose.Schema(
   {
@@ -34,18 +43,20 @@ const orderSchema = new mongoose.Schema(
     items: [orderItemSchema],
 
     shippingAddress: {
-      fullName: String,
+      name: String,
       phone: String,
-      addressLine1: String,
+      line1: String,
+      line2: String,
       city: String,
       state: String,
-      postalCode: String,
-      country: String
+      pincode: String,
+      landmark: String,
+      instructions: String
     },
 
     paymentMethod: {
       type: String,
-      enum: ["COD", "RAZORPAY", "STRIPE"],
+      enum: ["COD", "RAZORPAY", "STRIPE", "UPI", "WALLET"],
       required: true
     },
 
@@ -57,8 +68,8 @@ const orderSchema = new mongoose.Schema(
 
     orderStatus: {
       type: String,
-      enum: ["placed", "confirmed", "shipped", "delivered", "cancelled"],
-      default: "placed"
+      enum: ["Processing", "Shipped", "Delivered", "Cancelled", "Returned", "placed", "confirmed", "shipped", "delivered", "cancelled"],
+      default: "Processing"
     },
 
     totalAmount: {
@@ -68,6 +79,19 @@ const orderSchema = new mongoose.Schema(
 
     paymentId: {
       type: String
+    },
+
+    invoiceUrl: {
+      type: String
+    },
+
+    trackingUrl: {
+      type: String
+    },
+
+    returnEligible: {
+      type: Boolean,
+      default: false
     }
   },
   { timestamps: true }

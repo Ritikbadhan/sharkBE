@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Ecommerce API
-  version: 1.1.0
+  version: 1.2.0
   description: API docs for the ecommerce backend
 
 paths:
@@ -114,14 +114,33 @@ paths:
           name: category
           schema:
             type: string
-          description: Category ObjectId
+          description: Category id or name
         - in: query
-          name: q
+          name: collection
           schema:
             type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [price_asc, price_desc, rating_desc, popular, newest]
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
       responses:
         '200':
-          description: Product list
+          description: Product list with pagination
     post:
       summary: Create product (admin)
       security:
@@ -136,9 +155,16 @@ paths:
         '201':
           description: Product created
 
+  /api/products/trending:
+    get:
+      summary: List trending products
+      responses:
+        '200':
+          description: Trending product list
+
   /api/products/{id}:
     get:
-      summary: Get product by id
+      summary: Get product detail by id
       parameters:
         - $ref: '#/components/parameters/ObjectIdParam'
       responses:
@@ -176,7 +202,7 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: Cart
+          description: Cart with enriched item fields
 
   /api/cart/add:
     post:
@@ -188,21 +214,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [productId]
-              properties:
-                productId:
-                  type: string
-                quantity:
-                  type: integer
-                  minimum: 1
+              $ref: '#/components/schemas/CartItemMutationRequest'
       responses:
         '200':
           description: Item added
 
   /api/cart/update:
     put:
-      summary: Update cart (single item quantity or replace full items)
+      summary: Update quantity for cart item variant
       security:
         - bearerAuth: []
       requestBody:
@@ -210,20 +229,28 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CartUpdateRequest'
+              $ref: '#/components/schemas/CartItemMutationRequest'
       responses:
         '200':
           description: Cart updated
 
   /api/cart/remove/{productId}:
     delete:
-      summary: Remove item from cart
+      summary: Remove item from cart (optionally by size/color variant)
       security:
         - bearerAuth: []
       parameters:
         - in: path
           name: productId
           required: true
+          schema:
+            type: string
+        - in: query
+          name: size
+          schema:
+            type: string
+        - in: query
+          name: color
           schema:
             type: string
       responses:
@@ -238,6 +265,56 @@ paths:
       responses:
         '200':
           description: Cart cleared
+
+  /api/wishlist:
+    get:
+      summary: Get wishlist items
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Wishlist list
+    post:
+      summary: Add product to wishlist
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId]
+              properties:
+                productId:
+                  type: string
+      responses:
+        '200':
+          description: Added to wishlist
+
+  /api/wishlist/{productId}:
+    delete:
+      summary: Remove product from wishlist
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Removed from wishlist
+
+  /api/account:
+    get:
+      summary: Account aggregate payload
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile, orders, addresses, paymentMethods, rewards, returns
 
   /api/users/profile:
     get:
@@ -377,12 +454,12 @@ paths:
         '201':
           description: Review created
 
-  /api/reviews/{id}:
+  /api/reviews/{productId}:
     get:
       summary: List reviews for product
       parameters:
         - in: path
-          name: id
+          name: productId
           required: true
           schema:
             type: string
@@ -390,6 +467,8 @@ paths:
       responses:
         '200':
           description: Review list
+
+  /api/reviews/{id}:
     delete:
       summary: Delete review (owner/admin)
       security:
@@ -453,9 +532,39 @@ paths:
                   type: string
                 paymentStatus:
                   type: string
+                invoiceUrl:
+                  type: string
+                trackingUrl:
+                  type: string
+                returnEligible:
+                  type: boolean
       responses:
         '200':
           description: Order updated
+
+  /api/returns:
+    post:
+      summary: Create return request
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReturnRequest'
+      responses:
+        '201':
+          description: Return request created
+
+  /api/returns/my:
+    get:
+      summary: List current user's returns
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Return list
 
   /api/payments/create:
     post:
@@ -617,6 +726,10 @@ components:
     AddressRequest:
       type: object
       properties:
+        name:
+          type: string
+        phone:
+          type: string
         line1:
           type: string
         line2:
@@ -625,12 +738,14 @@ components:
           type: string
         state:
           type: string
-        postalCode:
+        pincode:
           type: string
-        country:
+        landmark:
           type: string
-        phone:
+        instructions:
           type: string
+        isDefault:
+          type: boolean
 
     CategoryRequest:
       type: object
@@ -649,7 +764,15 @@ components:
           type: string
         description:
           type: string
+        category:
+          type: string
+        collection:
+          type: string
         price:
+          type: number
+        originalPrice:
+          type: number
+        mrp:
           type: number
         stock:
           type: integer
@@ -659,32 +782,136 @@ components:
               items:
                 type: string
             - type: string
+        isNew:
+          type: boolean
+        isBestSeller:
+          type: boolean
+        isLimited:
+          type: boolean
+        rating:
+          type: number
+        reviewCount:
+          type: integer
+        sizes:
+          oneOf:
+            - type: array
+              items:
+                type: string
+            - type: string
+        variants:
+          type: array
+          items:
+            type: object
+            properties:
+              size:
+                type: string
+              color:
+                type: string
+              stock:
+                type: integer
+        colors:
+          oneOf:
+            - type: array
+              items:
+                type: string
+            - type: string
+        viewCount:
+          type: integer
+        addedToCartCount:
+          type: integer
+        trendingScore:
+          type: number
+        dropDate:
+          type: string
+          format: date-time
+        releaseDate:
+          type: string
+          format: date-time
+        productSpecifications:
+          type: object
+          properties:
+            fit:
+              type: string
+            material:
+              type: string
+            pattern:
+              type: string
+            neckline:
+              type: string
+            sleeveType:
+              type: string
+            closure:
+              type: string
+            occasion:
+              type: array
+              items:
+                type: string
+            season:
+              type: array
+              items:
+                type: string
+            countryOfOrigin:
+              type: string
+            fabricWeightGsm:
+              type: number
+            careInstructions:
+              type: array
+              items:
+                type: string
+            sizeAndFit:
+              type: object
+              properties:
+                modelHeight:
+                  type: string
+                modelWearing:
+                  type: string
+                fitNote:
+                  type: string
+            measurementsCm:
+              type: object
+              additionalProperties:
+                type: object
+                properties:
+                  chest:
+                    type: number
+                  length:
+                    type: number
+                  shoulder:
+                    type: number
+                  sleeve:
+                    type: number
+            manufacturingDetails:
+              type: object
+              properties:
+                fabricSource:
+                  type: string
+                stitchType:
+                  type: string
+                buttonType:
+                  type: string
+                lining:
+                  type: string
         categoryId:
           type: string
           description: ObjectId, slug, or category name
 
-    CartUpdateRequest:
+    CartItemMutationRequest:
       type: object
+      required: [productId, quantity]
       properties:
         productId:
           type: string
         quantity:
           type: integer
-        items:
-          type: array
-          items:
-            type: object
-            required: [productId, quantity]
-            properties:
-              productId:
-                type: string
-              quantity:
-                type: integer
-                minimum: 1
+          minimum: 1
+        size:
+          type: string
+        color:
+          type: string
 
     ReviewRequest:
       type: object
-      required: [productId, rating]
+      required: [productId, rating, comment]
       properties:
         productId:
           type: string
@@ -694,8 +921,14 @@ components:
           maximum: 5
         title:
           type: string
-        body:
+        comment:
           type: string
+        images:
+          oneOf:
+            - type: array
+              items:
+                type: string
+            - type: string
 
     OrderCreateRequest:
       type: object
@@ -713,26 +946,50 @@ components:
               quantity:
                 type: integer
                 minimum: 1
+              size:
+                type: string
+              color:
+                type: string
         shippingAddress:
           type: object
           properties:
-            fullName:
+            name:
               type: string
             phone:
               type: string
-            addressLine1:
+            line1:
+              type: string
+            line2:
               type: string
             city:
               type: string
             state:
               type: string
-            postalCode:
+            pincode:
               type: string
-            country:
+            landmark:
+              type: string
+            instructions:
               type: string
         paymentMethod:
           type: string
-          enum: [COD, RAZORPAY, STRIPE]
+          enum: [COD, RAZORPAY, STRIPE, UPI, WALLET]
         paymentId:
           type: string
-          description: Optional external payment ID
+        invoiceUrl:
+          type: string
+        trackingUrl:
+          type: string
+
+    ReturnRequest:
+      type: object
+      required: [reason]
+      properties:
+        orderId:
+          type: string
+        productId:
+          type: string
+        reason:
+          type: string
+        comment:
+          type: string

@@ -57,9 +57,16 @@ Notes:
 - `PUT /api/users/profile` (auth)
 - `DELETE /api/users/profile` (auth)
 
-Notes:
-- Email updates enforce uniqueness.
-- Changing email sets `emailVerified=false` and sends a fresh verification code.
+### Account
+- `GET /api/account` (auth)
+
+Returns:
+- `profile`
+- `orders`
+- `addresses`
+- `paymentMethods`
+- `rewards`
+- `returns`
 
 ### Categories
 - `GET /api/categories` (public, active categories)
@@ -69,10 +76,20 @@ Notes:
 
 ### Products
 - `GET /api/products`
+  - query params: `sort`, `category`, `collection`, `search`, `page`, `limit`
+- `GET /api/products/trending`
 - `GET /api/products/:id`
 - `POST /api/products` (admin)
 - `PUT /api/products/:id` (admin)
 - `DELETE /api/products/:id` (admin)
+
+Product fields include:
+- `id/_id`, `name`, `description`, `category`, `collection`, `price`, `originalPrice`, `mrp`
+- `images[]`, `stock`, `isNew`, `isBestSeller`, `isLimited`
+- `rating`, `reviewCount`, `sizes`, `variants`, `colors`
+- `productSpecifications` (fit/material/pattern/size chart/care/manufacturing details)
+- `viewCount`, `addedToCartCount`, `trendingScore`, `dropDate`, `releaseDate`
+- `createdAt`, `updatedAt`
 
 ### Cart
 - `GET /api/cart` (auth)
@@ -81,8 +98,46 @@ Notes:
 - `DELETE /api/cart/remove/:productId` (auth)
 - `DELETE /api/cart/clear` (auth)
 
-Notes:
-- Item pricing is server-controlled from Product data.
+Cart add/update contract:
+```json
+{
+  "productId": "<product-id>",
+  "quantity": 1,
+  "size": "M",
+  "color": "Black"
+}
+```
+
+Cart item response fields:
+- `productId`, `name`, `price`, `originalPrice`, `image`, `quantity`
+- `size`, `color`, `category`, `collection`, `description`, `stock`
+
+Note:
+- `DELETE /api/cart/remove/:productId` supports variant targeting with optional `size` and `color` query params.
+
+### Wishlist
+- `GET /api/wishlist` (auth)
+- `POST /api/wishlist` (auth)
+- `DELETE /api/wishlist/:productId` (auth)
+
+`POST /api/wishlist` body:
+```json
+{ "productId": "<product-id>" }
+```
+
+Wishlist item fields are card-ready:
+- `id`, `name`, `price`, `originalPrice`, `images/image`, `category`, `collection`
+- `stock`, `sizes/variants`, `isNew`, `isBestSeller`, `isLimited`
+
+### Addresses
+- `GET /api/addresses` (auth)
+- `POST /api/addresses` (auth)
+- `PUT /api/addresses/:id` (auth)
+- `DELETE /api/addresses/:id` (auth)
+
+Address object:
+- `id`, `name`, `phone`, `line1`, `line2`, `city`, `state`, `pincode`
+- `landmark`, `instructions`, `isDefault`
 
 ### Orders
 - `POST /api/orders` (auth)
@@ -90,13 +145,40 @@ Notes:
 - `GET /api/orders/:id` (owner/admin)
 - `PUT /api/orders/:id/status` (admin)
 
-Notes:
-- Order item price/name/image and `totalAmount` are derived server-side.
+Order object for account:
+- `id`, `date`, `status`, `total`
+- `items[{ productId, name, qty, size, color, price, image }]`
+- `shippingAddress`, `paymentMethod`, `invoiceUrl`, `trackingUrl`, `returnEligible`
+
+### Returns
+- `POST /api/returns` (auth)
+- `GET /api/returns/my` (auth)
+
+`POST /api/returns` body:
+```json
+{
+  "orderId": "<optional-order-id>",
+  "productId": "<optional-product-id>",
+  "reason": "Damaged item",
+  "comment": "Box was torn"
+}
+```
 
 ### Reviews
 - `POST /api/reviews` (auth)
 - `GET /api/reviews/:productId`
 - `DELETE /api/reviews/:id` (owner/admin)
+
+`POST /api/reviews` contract:
+```json
+{
+  "productId": "<product-id>",
+  "rating": 5,
+  "title": "Great",
+  "comment": "Loved it",
+  "images": ["https://..."]
+}
+```
 
 ### Payments
 - `POST /api/payments/create` (auth)
@@ -115,6 +197,6 @@ Notes:
 
 ## Validation and error handling
 
-- Route params using IDs now return `400` for invalid ObjectId format.
+- Route params using IDs return `400` for invalid ObjectId format.
 - Authorization failures return `401`/`403`.
 - Validation failures return `400`.

@@ -6,8 +6,10 @@ const cartSchema = new mongoose.Schema(
     items: [
       {
         productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
-        quantity: Number,
-        price: Number
+        quantity: { type: Number, min: 1, default: 1 },
+        price: { type: Number, min: 0 },
+        size: { type: String, trim: true },
+        color: { type: String, trim: true }
       }
     ]
   },

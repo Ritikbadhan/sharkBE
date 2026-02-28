@@ -1,34 +1,44 @@
 const Product = require('../models/Product.model');
+const Category = require('../models/Category.model');
 const mongoose = require('mongoose');
+const { toProductResponse } = require('../utils/serializers');
+
+function asArray(value) {
+  if (value === undefined || value === null || value === '') return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function parsePositiveInt(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.floor(parsed);
+}
 
 module.exports = {
   create: async (req, res) => {
     try {
       if (!req.user || req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
-      let { name, description, price, stock, images, categoryId } = req.body || {};
-      // ensure images is always an array when present (frontend might send a single string)
-      if (images && !Array.isArray(images)) {
-        images = [images];
-      }
-      if (!name || price === undefined) return res.status(400).json({ message: 'name and price are required' });
+      const payload = { ...(req.body || {}) };
 
-      // if categoryId is provided but not a valid ObjectId, try looking up by slug or name
-      if (categoryId && !mongoose.Types.ObjectId.isValid(categoryId)) {
-        const Category = require('../models/Category.model');
-        const cat = await Category.findOne({ slug: categoryId }) || await Category.findOne({ name: categoryId });
-        if (cat) {
-          categoryId = cat._id;
-        } else {
-          return res.status(400).json({ message: 'Invalid categoryId' });
-        }
+      if (payload.images && !Array.isArray(payload.images)) payload.images = [payload.images];
+      if (payload.sizes && !Array.isArray(payload.sizes)) payload.sizes = [payload.sizes];
+      if (payload.colors && !Array.isArray(payload.colors)) payload.colors = [payload.colors];
+      if (!payload.name || payload.price === undefined) {
+        return res.status(400).json({ message: 'name and price are required' });
       }
 
-      const product = new Product({ name, description, price, stock, images, categoryId });
+      if (payload.categoryId && !mongoose.Types.ObjectId.isValid(payload.categoryId)) {
+        const cat = (await Category.findOne({ slug: payload.categoryId })) || (await Category.findOne({ name: payload.categoryId }));
+        if (!cat) return res.status(400).json({ message: 'Invalid categoryId' });
+        payload.categoryId = cat._id;
+        if (!payload.category) payload.category = cat.name;
+      }
+
+      const product = new Product(payload);
       await product.save();
-      return res.status(201).json({ message: 'Product created', product });
+      return res.status(201).json({ message: 'Product created', product: toProductResponse(product) });
     } catch (err) {
       console.error('Create product error:', err);
-      // propagate validation messages in response
       if (err.name === 'ValidationError') {
         return res.status(400).json({ message: err.message, errors: err.errors });
       }
@@ -38,20 +48,80 @@ module.exports = {
 
   list: async (req, res) => {
     try {
-      const { category, q } = req.query || {};
-      const filter = {};
-      if (category) {
-        if (!mongoose.Types.ObjectId.isValid(category)) {
-          return res.status(400).json({ message: 'Invalid category query parameter' });
-        }
-        filter.categoryId = category;
-      }
-      if (q) filter.name = { $regex: q, $options: 'i' };
+      const { category, collection, search, q, sort } = req.query || {};
+      const page = parsePositiveInt(req.query && req.query.page, 1);
+      const limit = parsePositiveInt(req.query && req.query.limit, 20);
+      const skip = (page - 1) * limit;
 
-      const products = await Product.find(filter).sort({ createdAt: -1 });
-      return res.status(200).json({ products });
+      const andFilters = [];
+      if (category) {
+        if (mongoose.Types.ObjectId.isValid(category)) {
+          andFilters.push({
+            $or: [{ categoryId: category }, { category: new RegExp(`^${category}$`, 'i') }]
+          });
+        } else {
+          andFilters.push({ category: { $regex: category, $options: 'i' } });
+        }
+      }
+      if (collection) andFilters.push({ collection: { $regex: collection, $options: 'i' } });
+      if (search || q) {
+        const text = search || q;
+        andFilters.push({
+          $or: [
+          { name: { $regex: text, $options: 'i' } },
+          { description: { $regex: text, $options: 'i' } }
+          ]
+        });
+      }
+      const filter = andFilters.length ? { $and: andFilters } : {};
+
+      let sortSpec = { createdAt: -1 };
+      switch (sort) {
+        case 'price_asc':
+          sortSpec = { price: 1 };
+          break;
+        case 'price_desc':
+          sortSpec = { price: -1 };
+          break;
+        case 'rating_desc':
+          sortSpec = { rating: -1, reviewCount: -1 };
+          break;
+        case 'popular':
+          sortSpec = { isBestSeller: -1, addedToCartCount: -1, viewCount: -1 };
+          break;
+        case 'newest':
+          sortSpec = { createdAt: -1 };
+          break;
+        default:
+          break;
+      }
+
+      const [products, total] = await Promise.all([
+        Product.find(filter).sort(sortSpec).skip(skip).limit(limit),
+        Product.countDocuments(filter)
+      ]);
+
+      return res.status(200).json({
+        products: products.map((p) => toProductResponse(p)),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1
+        }
+      });
     } catch (err) {
       console.error('List products error:', err);
+      return res.status(500).json({ message: 'Server error' });
+    }
+  },
+
+  trending: async (_req, res) => {
+    try {
+      const products = await Product.find({}).sort({ trendingScore: -1, addedToCartCount: -1, viewCount: -1, createdAt: -1 }).limit(12);
+      return res.status(200).json({ products: products.map((p) => toProductResponse(p)) });
+    } catch (err) {
+      console.error('Trending products error:', err);
       return res.status(500).json({ message: 'Server error' });
     }
   },
@@ -61,7 +131,10 @@ module.exports = {
       const { id } = req.params;
       const product = await Product.findById(id);
       if (!product) return res.status(404).json({ message: 'Product not found' });
-      return res.status(200).json({ product });
+
+      product.viewCount = Number(product.viewCount || 0) + 1;
+      await product.save();
+      return res.status(200).json({ product: toProductResponse(product) });
     } catch (err) {
       console.error('Get product error:', err);
       return res.status(500).json({ message: 'Server error' });
@@ -75,23 +148,49 @@ module.exports = {
       const product = await Product.findById(id);
       if (!product) return res.status(404).json({ message: 'Product not found' });
 
-      const updatable = ['name', 'description', 'price', 'stock', 'images', 'categoryId'];
+      const updatable = [
+        'name',
+        'description',
+        'category',
+        'collection',
+        'price',
+        'originalPrice',
+        'mrp',
+        'images',
+        'stock',
+        'isNew',
+        'isBestSeller',
+        'isLimited',
+        'rating',
+        'reviewCount',
+        'sizes',
+        'variants',
+        'colors',
+        'dropDate',
+        'releaseDate',
+        'viewCount',
+        'addedToCartCount',
+        'trendingScore',
+        'productSpecifications',
+        'categoryId'
+      ];
+
       if (req.body.categoryId !== undefined && req.body.categoryId !== null && !mongoose.Types.ObjectId.isValid(req.body.categoryId)) {
         return res.status(400).json({ message: 'Invalid categoryId' });
       }
-      updatable.forEach((f) => {
-        if (req.body[f] !== undefined) {
-          // coerce images to array when updating
-          if (f === 'images' && req.body.images && !Array.isArray(req.body.images)) {
-            product.images = [req.body.images];
+
+      updatable.forEach((field) => {
+        if (req.body[field] !== undefined) {
+          if (['images', 'sizes', 'colors'].includes(field)) {
+            product[field] = asArray(req.body[field]);
           } else {
-            product[f] = req.body[f];
+            product[field] = req.body[field];
           }
         }
       });
 
       await product.save();
-      return res.status(200).json({ message: 'Product updated', product });
+      return res.status(200).json({ message: 'Product updated', product: toProductResponse(product) });
     } catch (err) {
       console.error('Update product error:', err);
       return res.status(500).json({ message: 'Server error' });
@@ -111,5 +210,5 @@ module.exports = {
       console.error('Delete product error:', err);
       return res.status(500).json({ message: 'Server error' });
     }
-  },
+  }
 };

@@ -11,13 +11,15 @@ module.exports = {
   create: async (req, res) => {
     try {
       if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
-      const { items, shippingAddress, paymentMethod, paymentId } = req.body || {};
+      const { items, shippingAddress, paymentMethod, paymentId, invoiceUrl, trackingUrl } = req.body || {};
       if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'Order items required' });
       if (!paymentMethod) return res.status(400).json({ message: 'paymentMethod required' });
 
       const normalized = items.map((it) => ({
         productId: it && it.productId,
-        quantity: parseQuantity(it && it.quantity),
+        quantity: parseQuantity((it && it.quantity) ?? (it && it.qty)),
+        size: it && it.size,
+        color: it && it.color
       }));
       if (normalized.some((it) => !it.productId || !it.quantity || it.quantity < 1)) {
         return res.status(400).json({ message: 'Each item must contain productId and a positive integer quantity' });
@@ -42,8 +44,10 @@ module.exports = {
           productId: product._id,
           name: product.name,
           quantity: it.quantity,
+          size: it.size,
+          color: it.color,
           price: linePrice,
-          image: Array.isArray(product.images) && product.images.length ? product.images[0] : undefined,
+          image: Array.isArray(product.images) && product.images.length ? product.images[0] : undefined
         };
       });
 
@@ -53,7 +57,10 @@ module.exports = {
         shippingAddress,
         paymentMethod,
         totalAmount,
-        paymentId
+        paymentId,
+        invoiceUrl,
+        trackingUrl,
+        returnEligible: true
       });
       await order.save();
       return res.status(201).json({ message: 'Order placed', order });
@@ -80,7 +87,6 @@ module.exports = {
       if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid id' });
       const order = await Order.findById(id).populate('userId', 'name email');
       if (!order) return res.status(404).json({ message: 'Order not found' });
-      // allow owner or admin
       if (order.userId._id.toString() !== (req.user && req.user._id.toString()) && !(req.user && req.user.role === 'admin')) {
         return res.status(403).json({ message: 'Forbidden' });
       }
@@ -96,12 +102,15 @@ module.exports = {
       if (!req.user || req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
       const { id } = req.params;
       if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid id' });
-      const { orderStatus, paymentStatus } = req.body || {};
+      const { orderStatus, paymentStatus, invoiceUrl, trackingUrl, returnEligible } = req.body || {};
       const order = await Order.findById(id);
       if (!order) return res.status(404).json({ message: 'Order not found' });
 
       if (orderStatus) order.orderStatus = orderStatus;
       if (paymentStatus) order.paymentStatus = paymentStatus;
+      if (invoiceUrl !== undefined) order.invoiceUrl = invoiceUrl;
+      if (trackingUrl !== undefined) order.trackingUrl = trackingUrl;
+      if (returnEligible !== undefined) order.returnEligible = Boolean(returnEligible);
 
       await order.save();
       return res.status(200).json({ message: 'Order updated', order });
