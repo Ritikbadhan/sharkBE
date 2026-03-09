@@ -9,7 +9,11 @@ dotenv.config();
 
 const app = express();
 
-app.use(express.json());
+app.use(express.json({ strict: false }));
+app.use((req, res, next) => {
+  if (req.body === null) req.body = {};
+  next();
+});
 
 // CORS
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3001')
@@ -50,6 +54,7 @@ app.use('/api/addresses', require('./routes/address.routes'));
 app.use('/api/categories', require('./routes/category.routes'));
 app.use('/api/reviews', require('./routes/review.routes'));
 app.use('/api/orders', require('./routes/order.routes'));
+app.use('/api/checkout', require('./routes/checkout.routes'));
 app.use('/api/returns', require('./routes/return.routes'));
 app.use('/api/payments', require('./routes/payment.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));

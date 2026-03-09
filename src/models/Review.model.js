@@ -8,7 +8,10 @@ const reviewSchema = new mongoose.Schema(
     title: { type: String },
     comment: { type: String },
     body: { type: String },
-    images: { type: [String], default: [] }
+    images: { type: [String], default: [] },
+    isApproved: { type: Boolean, default: false },
+    isHidden: { type: Boolean, default: false },
+    isFeatured: { type: Boolean, default: false }
   },
   { timestamps: true }
 );

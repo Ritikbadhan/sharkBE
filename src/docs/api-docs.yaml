@@ -454,7 +454,7 @@ paths:
         '201':
           description: Review created
 
-  /api/reviews/{productId}:
+  /api/reviews/product/{productId}:
     get:
       summary: List reviews for product
       parameters:
@@ -468,13 +468,17 @@ paths:
         '200':
           description: Review list
 
-  /api/reviews/{id}:
+  /api/reviews/{reviewId}:
     delete:
       summary: Delete review (owner/admin)
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/ObjectIdParam'
+        - in: path
+          name: reviewId
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: Review deleted
@@ -493,6 +497,13 @@ paths:
       responses:
         '201':
           description: Order created
+    get:
+      summary: Get current user's orders
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Order list
 
   /api/orders/my-orders:
     get:
@@ -502,6 +513,61 @@ paths:
       responses:
         '200':
           description: Order list
+
+  /api/orders/user:
+    get:
+      summary: Get current user's orders (alias)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Order list
+
+  /api/orders/coupons/validate:
+    post:
+      summary: Validate order coupon
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CouponValidationRequest'
+      responses:
+        '200':
+          description: Coupon validation result
+
+  /api/checkout/validate:
+    post:
+      summary: Validate checkout items and pricing
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutValidateRequest'
+      responses:
+        '200':
+          description: Checkout validation result
+
+  /api/checkout/shipping-options:
+    get:
+      summary: List available shipping options
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: subtotal
+          required: false
+          schema:
+            type: number
+          description: Optional cart subtotal used to compute shipping fee.
+      responses:
+        '200':
+          description: Shipping options
 
   /api/orders/{id}:
     get:
@@ -513,6 +579,17 @@ paths:
       responses:
         '200':
           description: Order details
+
+  /api/orders/{id}/track:
+    get:
+      summary: Track order (owner/admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectIdParam'
+      responses:
+        '200':
+          description: Order tracking details
 
   /api/orders/{id}/status:
     put:
@@ -526,18 +603,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                orderStatus:
-                  type: string
-                paymentStatus:
-                  type: string
-                invoiceUrl:
-                  type: string
-                trackingUrl:
-                  type: string
-                returnEligible:
-                  type: boolean
+              $ref: '#/components/schemas/OrderStatusUpdateRequest'
       responses:
         '200':
           description: Order updated
@@ -635,6 +701,24 @@ paths:
         '200':
           description: User list
 
+  /api/admin/users/{id}:
+    put:
+      summary: Update user (admin)
+      description: Supports actions block, reset_password, and set_role.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserUpdateRequest'
+      responses:
+        '200':
+          description: User updated
+
   /api/admin/orders:
     get:
       summary: List orders (admin)
@@ -643,6 +727,104 @@ paths:
       responses:
         '200':
           description: Order list
+    post:
+      summary: Export orders (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminOrderCollectionActionRequest'
+      responses:
+        '200':
+          description: Orders exported
+
+  /api/admin/orders/{id}:
+    get:
+      summary: Get order by id (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectIdParam'
+      responses:
+        '200':
+          description: Order details
+    put:
+      summary: Update order by action (admin)
+      description: Supports actions update_status, mark_shipped, refund, and cancel. Include trackingId when required.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderStatusUpdateRequest'
+      responses:
+        '200':
+          description: Order updated
+
+  /api/admin/reviews:
+    get:
+      summary: List reviews (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Review list
+
+  /api/admin/reviews/{id}:
+    put:
+      summary: Update review by action (admin)
+      description: Supports actions approve, hide_abusive, and feature.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminReviewUpdateRequest'
+      responses:
+        '200':
+          description: Review updated
+    delete:
+      summary: Delete review (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectIdParam'
+      responses:
+        '200':
+          description: Review deleted
+
+  /api/admin/inventory:
+    get:
+      summary: List inventory (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Inventory list
+    put:
+      summary: Update inventory stock (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryUpdateRequest'
+      responses:
+        '200':
+          description: Inventory updated
 
   /api/admin/dashboard-stats:
     get:
@@ -752,6 +934,12 @@ components:
       properties:
         name:
           type: string
+        description:
+          type: string
+        image:
+          type: string
+        displayOrder:
+          type: integer
         slug:
           type: string
         isActive:
@@ -803,6 +991,8 @@ components:
           items:
             type: object
             properties:
+              sku:
+                type: string
               size:
                 type: string
               color:
@@ -974,12 +1164,44 @@ components:
         paymentMethod:
           type: string
           enum: [COD, RAZORPAY, STRIPE, UPI, WALLET]
+        couponCode:
+          type: string
         paymentId:
           type: string
         invoiceUrl:
           type: string
         trackingUrl:
           type: string
+
+    CouponValidationRequest:
+      type: object
+      required: [code, subtotal]
+      properties:
+        code:
+          type: string
+        subtotal:
+          type: number
+          minimum: 0
+
+    CheckoutValidateRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          description: Optional. If omitted, server validates current cart items.
+          items:
+            type: object
+            required: [productId, quantity]
+            properties:
+              productId:
+                type: string
+              quantity:
+                type: integer
+                minimum: 1
+              size:
+                type: string
+              color:
+                type: string
 
     ReturnRequest:
       type: object
@@ -993,3 +1215,73 @@ components:
           type: string
         comment:
           type: string
+
+    AdminOrderCollectionActionRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [export]
+        filters:
+          type: object
+          description: Optional export filters (status, date range, etc.)
+
+    OrderStatusUpdateRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [update_status, mark_shipped, refund, cancel]
+        orderStatus:
+          type: string
+        paymentStatus:
+          type: string
+        invoiceUrl:
+          type: string
+        trackingUrl:
+          type: string
+        trackingId:
+          type: string
+          description: Required for shipped/tracked actions when applicable.
+        returnEligible:
+          type: boolean
+        refundAmount:
+          type: number
+        reason:
+          type: string
+        metadata:
+          type: object
+          description: Action-specific payload for custom fields.
+
+    AdminUserUpdateRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [block, reset_password, set_role]
+        isBlocked:
+          type: boolean
+        role:
+          type: string
+          enum: [USER, ADMIN]
+        newPassword:
+          type: string
+
+    AdminReviewUpdateRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [approve, hide_abusive, feature]
+
+    InventoryUpdateRequest:
+      type: object
+      required: [variantId, stock]
+      properties:
+        variantId:
+          type: string
+        stock:
+          type: integer

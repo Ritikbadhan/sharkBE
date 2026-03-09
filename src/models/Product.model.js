@@ -2,11 +2,11 @@ const mongoose = require("mongoose");
 
 const variantSchema = new mongoose.Schema(
   {
+    sku: { type: String, trim: true },
     size: { type: String, trim: true },
     color: { type: String, trim: true },
     stock: { type: Number, min: 0, default: 0 }
-  },
-  { _id: false }
+  }
 );
 
 const productSchema = new mongoose.Schema(

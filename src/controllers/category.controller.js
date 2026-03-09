@@ -4,13 +4,13 @@ module.exports = {
   create: async (req, res) => {
     try {
       if (!req.user || req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
-      const { name, slug, isActive } = req.body || {};
+      const { name, description, image, displayOrder, slug, isActive } = req.body || {};
       if (!name) return res.status(400).json({ message: 'name is required' });
 
       const existing = await Category.findOne({ slug });
       if (slug && existing) return res.status(409).json({ message: 'Slug already in use' });
 
-      const category = new Category({ name, slug, isActive });
+      const category = new Category({ name, description, image, displayOrder, slug, isActive });
       await category.save();
       return res.status(201).json({ message: 'Category created', category });
     } catch (err) {
@@ -33,7 +33,7 @@ module.exports = {
     try {
       if (!req.user || req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
       const { id } = req.params;
-      const { name, slug, isActive } = req.body || {};
+      const { name, description, image, displayOrder, slug, isActive } = req.body || {};
 
       const category = await Category.findById(id);
       if (!category) return res.status(404).json({ message: 'Category not found' });
@@ -44,6 +44,9 @@ module.exports = {
       }
 
       if (name !== undefined) category.name = name;
+      if (description !== undefined) category.description = description;
+      if (image !== undefined) category.image = image;
+      if (displayOrder !== undefined) category.displayOrder = displayOrder;
       if (slug !== undefined) category.slug = slug;
       if (isActive !== undefined) category.isActive = isActive;
 

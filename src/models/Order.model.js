@@ -62,7 +62,7 @@ const orderSchema = new mongoose.Schema(
 
     paymentStatus: {
       type: String,
-      enum: ["pending", "paid", "failed"],
+      enum: ["pending", "paid", "failed", "refunded"],
       default: "pending"
     },
 
@@ -76,6 +76,20 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       required: true
     },
+    couponCode: {
+      type: String
+    },
+    discountAmount: {
+      type: Number,
+      default: 0
+    },
+    discountType: {
+      type: String,
+      enum: ['percentage', 'fixed']
+    },
+    discountValue: {
+      type: Number
+    },
 
     paymentId: {
       type: String
@@ -88,10 +102,31 @@ const orderSchema = new mongoose.Schema(
     trackingUrl: {
       type: String
     },
+    trackingId: {
+      type: String
+    },
 
     returnEligible: {
       type: Boolean,
       default: false
+    },
+    refundAmount: {
+      type: Number
+    },
+    refundReason: {
+      type: String
+    },
+    refundedAt: {
+      type: Date
+    },
+    cancelReason: {
+      type: String
+    },
+    cancelledAt: {
+      type: Date
+    },
+    actionPayload: {
+      type: mongoose.Schema.Types.Mixed
     }
   },
   { timestamps: true }

@@ -30,7 +30,8 @@ module.exports = {
         title,
         comment: comment || body,
         body: body || comment,
-        images: Array.isArray(images) ? images : images ? [images] : []
+        images: Array.isArray(images) ? images : images ? [images] : [],
+        isApproved: true
       });
       await review.save();
       await syncProductReviewStats(productId);
@@ -45,7 +46,9 @@ module.exports = {
   listByProduct: async (req, res) => {
     try {
       const { productId } = req.params;
-      const reviews = await Review.find({ productId }).populate('user', 'name email').sort({ createdAt: -1 });
+      const reviews = await Review.find({ productId, isHidden: { $ne: true } })
+        .populate('user', 'name email')
+        .sort({ isFeatured: -1, createdAt: -1 });
       return res.status(200).json({ reviews });
     } catch (err) {
       console.error('List reviews error:', err);
@@ -56,14 +59,14 @@ module.exports = {
   delete: async (req, res) => {
     try {
       if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
-      const { id } = req.params;
-      const review = await Review.findById(id);
+      const reviewId = req.params.reviewId || req.params.id;
+      const review = await Review.findById(reviewId);
       if (!review) return res.status(404).json({ message: 'Review not found' });
       if (review.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
         return res.status(403).json({ message: 'Forbidden' });
       }
 
-      await Review.findByIdAndDelete(id);
+      await Review.findByIdAndDelete(reviewId);
       await syncProductReviewStats(review.productId);
       return res.status(200).json({ message: 'Review deleted' });
     } catch (err) {

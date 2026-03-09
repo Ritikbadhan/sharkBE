@@ -21,6 +21,7 @@ module.exports = async (req, res, next) => {
 
     const user = await User.findById(payload.id);
     if (!user) return res.status(401).json({ message: 'Unauthorized' });
+    if (user.isBlocked) return res.status(403).json({ message: 'Account is blocked' });
 
     req.user = user;
     next();

@@ -5,7 +5,7 @@ const auth = require('../middlewares/auth.middleware');
 const validateObjectId = require('../middlewares/validateObjectId.middleware');
 
 router.post('/', auth, reviewCtrl.create);
-router.get('/:productId', validateObjectId('productId'), reviewCtrl.listByProduct);
-router.delete('/:id', auth, validateObjectId('id'), reviewCtrl.delete);
+router.get('/product/:productId', validateObjectId('productId'), reviewCtrl.listByProduct);
+router.delete('/:reviewId', auth, validateObjectId('reviewId'), reviewCtrl.delete);
 
 module.exports = router;

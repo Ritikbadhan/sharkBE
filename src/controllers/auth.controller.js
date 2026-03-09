@@ -83,6 +83,9 @@ module.exports = {
       if (!user) {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
+      if (user.isBlocked) {
+        return res.status(403).json({ message: 'Account is blocked' });
+      }
       if (!user.emailVerified) {
         return res.status(401).json({ message: 'Please verify your email before logging in' });
       }
