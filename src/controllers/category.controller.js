@@ -21,7 +21,7 @@ module.exports = {
 
   list: async (req, res) => {
     try {
-      const categories = await Category.find({ isActive: true }).sort({ createdAt: -1 });
+      const categories = await Category.find().sort({ createdAt: -1 });
       return res.status(200).json({ categories });
     } catch (err) {
       console.error('List categories error:', err);

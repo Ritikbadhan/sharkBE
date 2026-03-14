@@ -8,7 +8,13 @@ function toProductResponse(product, options = {}) {
   if (!product) return null;
   const obj = product.toObject ? product.toObject() : { ...product };
 
-  const variants = Array.isArray(obj.variants) ? obj.variants : [];
+  const variants = (Array.isArray(obj.variants) ? obj.variants : []).map((variant) => {
+    if (!variant) return variant;
+    return {
+      ...variant,
+      id: variant._id ? variant._id.toString() : undefined
+    };
+  });
   const derivedSizes = variants
     .map((v) => v && v.size)
     .filter(Boolean)

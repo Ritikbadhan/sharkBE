@@ -334,27 +334,96 @@ module.exports = {
     }
   },
 
-  dashboardStats: async (req, res) => {
-    try {
-      if (!ensureAdmin(req, res)) return;
+ dashboardStats: async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
 
-      const usersCount = await User.countDocuments();
-      const ordersCount = await Order.countDocuments();
-      const productsCount = await Product.countDocuments();
+    const usersCount = await User.countDocuments();
+    const ordersCount = await Order.countDocuments();
+    const productsCount = await Product.countDocuments();
 
-      // total sales: sum of totalAmount for paid orders
-      const salesAgg = await Order.aggregate([
-        { $match: { paymentStatus: 'paid' } },
-        { $group: { _id: null, totalSales: { $sum: '$totalAmount' } } }
-      ]);
-      const totalSales = (salesAgg[0] && salesAgg[0].totalSales) || 0;
+    // total sales
+    const salesAgg = await Order.aggregate([
+      { $match: { paymentStatus: "paid" } },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: "$totalAmount" },
+        },
+      },
+    ]);
 
-      return res.status(200).json({ usersCount, ordersCount, productsCount, totalSales });
-    } catch (err) {
-      console.error('Admin dashboard stats error:', err);
-      return res.status(500).json({ message: 'Server error' });
-    }
-  },
+    const totalSales = salesAgg?.[0]?.totalSales || 0;
+
+    // order status stats
+    const orderStatus = await Order.aggregate([
+      {
+        $group: {
+          _id: "$orderStatus",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // recent orders
+    const recentOrders = await Order.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select("_id totalAmount orderStatus userEmail createdAt");
+
+    // low stock variants
+    const lowStock = await Product.aggregate([
+      { $unwind: "$variants" },
+      { $match: { "variants.stock": { $lte: 5 } } },
+      {
+        $project: {
+          productName: "$name",
+          size: "$variants.size",
+          color: "$variants.color",
+          stock: "$variants.stock",
+        },
+      },
+      { $limit: 5 },
+    ]);
+
+    // revenue last 7 days
+    const revenueChart = await Order.aggregate([
+      {
+        $match: {
+          paymentStatus: "paid",
+          createdAt: {
+            $gte: new Date(new Date().setDate(new Date().getDate() - 7)),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
+          },
+          revenue: { $sum: "$totalAmount" },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    return res.status(200).json({
+      summary: {
+        users: usersCount,
+        orders: ordersCount,
+        products: productsCount,
+        revenue: totalSales,
+      },
+      orderStatus,
+      recentOrders,
+      lowStock,
+      revenueChart,
+    });
+  } catch (err) {
+    console.error("Admin dashboard stats error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+},
 
   promoteUser: async (req, res) => {
     try {

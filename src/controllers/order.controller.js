@@ -45,6 +45,7 @@ module.exports = {
       const { items, shippingAddress, paymentMethod, paymentId, invoiceUrl, trackingUrl, couponCode } = req.body || {};
       if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'Order items required' });
       if (!paymentMethod) return res.status(400).json({ message: 'paymentMethod required' });
+      const normalizedPaymentMethod = String(paymentMethod).trim().toUpperCase();
 
       const normalized = items.map((it) => ({
         productId: it && it.productId,
@@ -107,7 +108,7 @@ module.exports = {
         userId: req.user._id,
         items: trustedItems,
         shippingAddress,
-        paymentMethod,
+        paymentMethod: normalizedPaymentMethod,
         totalAmount,
         paymentId,
         invoiceUrl,

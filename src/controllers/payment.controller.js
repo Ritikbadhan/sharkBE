@@ -1,8 +1,9 @@
 const Order = require('../models/Order.model');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
+const { getRazorpayConfig, isRazorpayConfigured, getRazorpayInstance } = require('../config/razorpay');
 
-const PAYMENT_WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET;
+const DEFAULT_CURRENCY = (process.env.RAZORPAY_CURRENCY || 'INR').toUpperCase();
 
 function safeEqual(a, b) {
   const left = Buffer.from(a || '', 'utf8');
@@ -11,13 +12,38 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(left, right);
 }
 
+function toSubunit(amount) {
+  return Math.max(0, Math.round(Number(amount || 0) * 100));
+}
+
 module.exports = {
+  config: async (req, res) => {
+    try {
+      const { keyId } = getRazorpayConfig();
+      return res.status(200).json({
+        provider: 'razorpay',
+        keyId: keyId || null,
+        currency: DEFAULT_CURRENCY,
+        configured: isRazorpayConfigured()
+      });
+    } catch (err) {
+      console.error('Payment config error:', err);
+      return res.status(500).json({ message: 'Server error' });
+    }
+  },
+
   create: async (req, res) => {
     try {
       if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
       const { orderId, paymentMethod } = req.body || {};
       if (!orderId || !paymentMethod) return res.status(400).json({ message: 'orderId and paymentMethod are required' });
       if (!mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ message: 'Invalid orderId' });
+      if (String(paymentMethod).toUpperCase() !== 'RAZORPAY') {
+        return res.status(400).json({ message: 'Only RAZORPAY is supported by this endpoint' });
+      }
+      if (!isRazorpayConfigured()) {
+        return res.status(503).json({ message: 'Razorpay is not configured' });
+      }
 
       const order = await Order.findById(orderId);
       if (!order) return res.status(404).json({ message: 'Order not found' });
@@ -25,22 +51,33 @@ module.exports = {
         return res.status(403).json({ message: 'Forbidden' });
       }
       if (order.paymentStatus === 'paid') return res.status(400).json({ message: 'Order is already paid' });
-      if (paymentMethod !== order.paymentMethod) {
+      if (String(paymentMethod).toUpperCase() !== String(order.paymentMethod || '').toUpperCase()) {
         return res.status(400).json({ message: 'paymentMethod does not match the order paymentMethod' });
       }
 
-      // In production integrate with payment gateway (Razorpay/Stripe/etc).
-      // For now create a mock payment session and attach to the order.
-      const paymentId = crypto.randomBytes(16).toString('hex');
-      order.paymentId = paymentId;
+      const razorpay = getRazorpayInstance();
+      const gatewayOrder = await razorpay.orders.create({
+        amount: toSubunit(order.totalAmount),
+        currency: DEFAULT_CURRENCY,
+        receipt: String(order._id),
+        notes: {
+          appOrderId: String(order._id),
+          userId: String(order.userId)
+        }
+      });
+
+      order.paymentGatewayOrderId = gatewayOrder.id;
       order.paymentStatus = 'pending';
+      order.paymentCurrency = gatewayOrder.currency || DEFAULT_CURRENCY;
       await order.save();
 
       const payment = {
-        paymentId,
+        orderId: order._id,
+        razorpayOrderId: gatewayOrder.id,
         amount: order.totalAmount,
-        currency: 'USD',
-        paymentMethod,
+        amountSubunit: gatewayOrder.amount,
+        currency: gatewayOrder.currency || DEFAULT_CURRENCY,
+        paymentMethod: 'RAZORPAY',
         status: 'pending'
       };
 
@@ -54,13 +91,13 @@ module.exports = {
   verify: async (req, res) => {
     try {
       if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
-      const { orderId, paymentId, signature } = req.body || {};
-      if (!orderId || !paymentId || !signature) {
-        return res.status(400).json({ message: 'orderId, paymentId and signature are required' });
+      const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body || {};
+      if (!orderId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        return res.status(400).json({ message: 'orderId, razorpayOrderId, razorpayPaymentId and razorpaySignature are required' });
       }
       if (!mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ message: 'Invalid orderId' });
-      if (!PAYMENT_WEBHOOK_SECRET) {
-        return res.status(503).json({ message: 'Payment verification is not configured' });
+      if (!isRazorpayConfigured()) {
+        return res.status(503).json({ message: 'Razorpay is not configured' });
       }
 
       const order = await Order.findById(orderId);
@@ -72,20 +109,24 @@ module.exports = {
       if (order.paymentStatus === 'paid') {
         return res.status(400).json({ message: 'Order is already paid' });
       }
-      if (order.paymentId !== paymentId) return res.status(400).json({ message: 'Invalid payment id' });
+      if (order.paymentGatewayOrderId !== razorpayOrderId) {
+        return res.status(400).json({ message: 'Invalid razorpay order id' });
+      }
+      const { keySecret } = getRazorpayConfig();
       const expectedSignature = crypto
-        .createHmac('sha256', PAYMENT_WEBHOOK_SECRET)
-        .update(`${orderId}:${paymentId}`)
+        .createHmac('sha256', keySecret)
+        .update(`${razorpayOrderId}|${razorpayPaymentId}`)
         .digest('hex');
-      if (!safeEqual(expectedSignature, signature)) {
+      if (!safeEqual(expectedSignature, razorpaySignature)) {
         return res.status(400).json({ message: 'Invalid payment signature' });
       }
 
+      order.paymentId = razorpayPaymentId;
       order.paymentStatus = 'paid';
       if (order.orderStatus === 'placed') order.orderStatus = 'confirmed';
       await order.save();
 
-      return res.status(200).json({ message: 'Payment verified', orderId: order._id });
+      return res.status(200).json({ message: 'Payment verified', orderId: order._id, paymentId: order.paymentId });
     } catch (err) {
       console.error('Verify payment error:', err);
       return res.status(500).json({ message: 'Server error' });
@@ -103,7 +144,13 @@ module.exports = {
         return res.status(403).json({ message: 'Forbidden' });
       }
 
-      return res.status(200).json({ paymentId: order.paymentId, paymentStatus: order.paymentStatus, totalAmount: order.totalAmount });
+      return res.status(200).json({
+        paymentId: order.paymentId,
+        paymentGatewayOrderId: order.paymentGatewayOrderId || null,
+        paymentStatus: order.paymentStatus,
+        totalAmount: order.totalAmount,
+        currency: order.paymentCurrency || DEFAULT_CURRENCY
+      });
     } catch (err) {
       console.error('Get payment error:', err);
       return res.status(500).json({ message: 'Server error' });

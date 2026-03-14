@@ -15,8 +15,10 @@ Node.js/Express backend for an ecommerce application using MongoDB (Mongoose).
    JWT_SECRET=secure-secret
    CORS_ORIGIN=http://localhost:3001
 
-   # payment verification secret (required for /api/payments/verify)
-   PAYMENT_WEBHOOK_SECRET=replace-with-strong-secret
+   # razorpay
+   RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxx
+   RAZORPAY_KEY_SECRET=xxxxxxxxxx
+   RAZORPAY_CURRENCY=INR
 
    # frontend URL used to build password reset links
    FRONTEND_URL=http://localhost:3000
@@ -181,13 +183,16 @@ Order object for account:
 ```
 
 ### Payments
+- `GET /api/payments/config` (public)
 - `POST /api/payments/create` (auth)
 - `POST /api/payments/verify` (auth)
 - `GET /api/payments/:orderId` (auth)
 
 Notes:
-- `/api/payments/verify` requires `orderId`, `paymentId`, and `signature`.
-- Signature is validated as HMAC-SHA256 of `"${orderId}:${paymentId}"` using `PAYMENT_WEBHOOK_SECRET`.
+- Create order with `paymentMethod: "RAZORPAY"` in `POST /api/orders`.
+- Call `POST /api/payments/create` with `orderId` and `paymentMethod: "RAZORPAY"`.
+- Verify using `POST /api/payments/verify` with `orderId`, `razorpayOrderId`, `razorpayPaymentId`, `razorpaySignature`.
+- Signature is validated as HMAC-SHA256 of `"${razorpayOrderId}|${razorpayPaymentId}"` using `RAZORPAY_KEY_SECRET`.
 
 ### Admin
 - `GET /api/admin/users` (admin)

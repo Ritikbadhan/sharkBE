@@ -632,9 +632,16 @@ paths:
         '200':
           description: Return list
 
+  /api/payments/config:
+    get:
+      summary: Get Razorpay public config
+      responses:
+        '200':
+          description: Payment provider config
+
   /api/payments/create:
     post:
-      summary: Create payment session
+      summary: Create Razorpay order
       security:
         - bearerAuth: []
       requestBody:
@@ -649,14 +656,15 @@ paths:
                   type: string
                 paymentMethod:
                   type: string
+                  enum: [RAZORPAY]
       responses:
         '201':
           description: Payment created
 
   /api/payments/verify:
     post:
-      summary: Verify payment using signature
-      description: Signature must be HMAC-SHA256("{orderId}:{paymentId}") with PAYMENT_WEBHOOK_SECRET
+      summary: Verify Razorpay payment signature
+      description: Signature must be HMAC-SHA256("{razorpayOrderId}|{razorpayPaymentId}") with RAZORPAY_KEY_SECRET
       security:
         - bearerAuth: []
       requestBody:
@@ -665,13 +673,15 @@ paths:
           application/json:
             schema:
               type: object
-              required: [orderId, paymentId, signature]
+              required: [orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature]
               properties:
                 orderId:
                   type: string
-                paymentId:
+                razorpayOrderId:
                   type: string
-                signature:
+                razorpayPaymentId:
+                  type: string
+                razorpaySignature:
                   type: string
       responses:
         '200':

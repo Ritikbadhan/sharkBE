@@ -5,6 +5,7 @@ const variantSchema = new mongoose.Schema(
     sku: { type: String, trim: true },
     size: { type: String, trim: true },
     color: { type: String, trim: true },
+    colorHex: { type: String, trim: true },
     stock: { type: Number, min: 0, default: 0 }
   }
 );

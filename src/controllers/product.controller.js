@@ -14,15 +14,47 @@ function parsePositiveInt(value, fallback) {
   return Math.floor(parsed);
 }
 
+function normalizeVariant(variant) {
+  if (!variant || typeof variant !== 'object' || Array.isArray(variant)) return null;
+
+  const normalized = {
+    sku: variant.sku,
+    size: variant.size,
+    color: variant.color,
+    colorHex: variant.colorHex,
+    stock: variant.stock
+  };
+
+  const incomingId = variant._id ?? variant.id;
+  if (incomingId && mongoose.Types.ObjectId.isValid(incomingId)) {
+    normalized._id = incomingId;
+  }
+
+  return normalized;
+}
+
+function normalizeVariants(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map(normalizeVariant).filter(Boolean);
+}
+
+function normalizeProductPayload(payload) {
+  const normalized = { ...payload };
+
+  if (normalized.images !== undefined) normalized.images = asArray(normalized.images);
+  if (normalized.sizes !== undefined) normalized.sizes = asArray(normalized.sizes);
+  if (normalized.colors !== undefined) normalized.colors = asArray(normalized.colors);
+  if (normalized.variants !== undefined) normalized.variants = normalizeVariants(normalized.variants);
+
+  return normalized;
+}
+
 module.exports = {
   create: async (req, res) => {
     try {
       if (!req.user || req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
-      const payload = { ...(req.body || {}) };
+      const payload = normalizeProductPayload(req.body || {});
 
-      if (payload.images && !Array.isArray(payload.images)) payload.images = [payload.images];
-      if (payload.sizes && !Array.isArray(payload.sizes)) payload.sizes = [payload.sizes];
-      if (payload.colors && !Array.isArray(payload.colors)) payload.colors = [payload.colors];
       if (!payload.name || payload.price === undefined) {
         return res.status(400).json({ message: 'name and price are required' });
       }
@@ -183,6 +215,8 @@ module.exports = {
         if (req.body[field] !== undefined) {
           if (['images', 'sizes', 'colors'].includes(field)) {
             product[field] = asArray(req.body[field]);
+          } else if (field === 'variants') {
+            product[field] = normalizeVariants(req.body[field]);
           } else {
             product[field] = req.body[field];
           }

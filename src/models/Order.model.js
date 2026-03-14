@@ -5,31 +5,31 @@ const orderItemSchema = new mongoose.Schema(
     productId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",
-      required: true
+      required: true,
     },
     name: {
       type: String,
-      required: true
+      required: true,
     },
     quantity: {
       type: Number,
-      required: true
+      required: true,
     },
     size: {
-      type: String
+      type: String,
     },
     color: {
-      type: String
+      type: String,
     },
     price: {
       type: Number,
-      required: true
+      required: true,
     },
     image: {
-      type: String
-    }
+      type: String,
+    },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const orderSchema = new mongoose.Schema(
@@ -37,7 +37,7 @@ const orderSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true
+      required: true,
     },
 
     items: [orderItemSchema],
@@ -51,85 +51,103 @@ const orderSchema = new mongoose.Schema(
       state: String,
       pincode: String,
       landmark: String,
-      instructions: String
+      instructions: String,
     },
 
     paymentMethod: {
       type: String,
       enum: ["COD", "RAZORPAY", "STRIPE", "UPI", "WALLET"],
-      required: true
+      required: true,
     },
 
     paymentStatus: {
       type: String,
       enum: ["pending", "paid", "failed", "refunded"],
-      default: "pending"
+      default: "pending",
     },
 
     orderStatus: {
       type: String,
-      enum: ["Processing", "Shipped", "Delivered", "Cancelled", "Returned", "placed", "confirmed", "shipped", "delivered", "cancelled"],
-      default: "Processing"
+      enum: [
+        "Placed",
+        "Confirmed",
+        "Processing",
+        "Packed",
+        "Dispatched",
+        "Shipped",
+        "Delivered",
+        "Cancelled",
+        "Returned",
+        "Refunded",
+      ],
+      default: "Placed",
     },
 
     totalAmount: {
       type: Number,
-      required: true
+      required: true,
     },
     couponCode: {
-      type: String
+      type: String,
     },
     discountAmount: {
       type: Number,
-      default: 0
+      default: 0,
     },
     discountType: {
       type: String,
-      enum: ['percentage', 'fixed']
+      enum: ["percentage", "fixed"],
     },
     discountValue: {
-      type: Number
+      type: Number,
     },
 
     paymentId: {
-      type: String
+      type: String,
+    },
+    paymentGatewayOrderId: {
+      type: String,
+    },
+    paymentCurrency: {
+      type: String,
+      default: "INR",
     },
 
     invoiceUrl: {
-      type: String
+      type: String,
     },
 
     trackingUrl: {
-      type: String
+      type: String,
     },
     trackingId: {
-      type: String
+      type: String,
     },
 
     returnEligible: {
       type: Boolean,
-      default: false
+      default: false,
     },
     refundAmount: {
-      type: Number
+      type: Number,
     },
     refundReason: {
-      type: String
+      type: String,
     },
     refundedAt: {
-      type: Date
+      type: Date,
     },
     cancelReason: {
-      type: String
+      type: String,
     },
     cancelledAt: {
-      type: Date
+      type: Date,
     },
     actionPayload: {
-      type: mongoose.Schema.Types.Mixed
-    }
+      type: mongoose.Schema.Types.Mixed,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Order", orderSchema);
