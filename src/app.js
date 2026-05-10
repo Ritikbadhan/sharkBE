@@ -10,6 +10,7 @@ dotenv.config();
 const app = express();
 
 app.use(express.json({ strict: false }));
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use((req, res, next) => {
   if (req.body === null) req.body = {};
   next();

@@ -2,6 +2,11 @@ const Order = require('../models/Order.model');
 const Product = require('../models/Product.model');
 const Coupon = require('../models/Coupon.model');
 const mongoose = require('mongoose');
+const { isRazorpayConfigured } = require('../config/razorpay');
+
+const GST_RATE = 0.12;
+const STANDARD_SHIPPING = 120;
+const FREE_SHIPPING_THRESHOLD = 1999;
 
 function parseQuantity(value) {
   const qty = Number(value);
@@ -38,6 +43,57 @@ function buildTrackingEvents(order) {
   return events;
 }
 
+function getShipping(subtotal) {
+  return subtotal >= FREE_SHIPPING_THRESHOLD || subtotal === 0 ? 0 : STANDARD_SHIPPING;
+}
+
+function findMatchingVariant(product, item) {
+  if (!Array.isArray(product.variants) || product.variants.length === 0) return null;
+
+  const requestedSize = String(item.size || '').trim().toLowerCase();
+  const requestedColor = String(item.color || '').trim().toLowerCase();
+
+  return product.variants.find((variant) => {
+    const variantSize = String(variant.size || '').trim().toLowerCase();
+    const variantColor = String(variant.color || '').trim().toLowerCase();
+
+    if (requestedSize && variantSize !== requestedSize) return false;
+    if (requestedColor && variantColor !== requestedColor) return false;
+    if (!requestedSize && !requestedColor) return false;
+    return true;
+  }) || null;
+}
+
+function getInventorySnapshot(product, item) {
+  const variant = findMatchingVariant(product, item);
+  if (variant) {
+    return {
+      variant,
+      availableStock: Number(variant.stock || 0),
+      stockLabel: 'variant'
+    };
+  }
+
+  return {
+    variant: null,
+    availableStock: Number(product.stock || 0),
+    stockLabel: 'product'
+  };
+}
+
+function decrementInventory(product, item) {
+  const qty = Number(item.quantity || 0);
+  const { variant } = getInventorySnapshot(product, item);
+
+  if (variant) {
+    variant.stock = Math.max(0, Number(variant.stock || 0) - qty);
+    product.stock = product.variants.reduce((sum, current) => sum + Number(current.stock || 0), 0);
+    return;
+  }
+
+  product.stock = Math.max(0, Number(product.stock || 0) - qty);
+}
+
 module.exports = {
   create: async (req, res) => {
     try {
@@ -46,6 +102,9 @@ module.exports = {
       if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'Order items required' });
       if (!paymentMethod) return res.status(400).json({ message: 'paymentMethod required' });
       const normalizedPaymentMethod = String(paymentMethod).trim().toUpperCase();
+      if (normalizedPaymentMethod === 'RAZORPAY' && !isRazorpayConfigured()) {
+        return res.status(503).json({ message: 'Razorpay test/live keys are not configured yet. Use COD for now or add Razorpay test keys.' });
+      }
 
       const normalized = items.map((it) => ({
         productId: it && it.productId,
@@ -61,13 +120,33 @@ module.exports = {
       }
 
       const productIds = [...new Set(normalized.map((it) => it.productId.toString()))];
-      const products = await Product.find({ _id: { $in: productIds } }).select('_id name price images');
+      const products = await Product.find({ _id: { $in: productIds } }).select('_id name price images stock variants');
       if (products.length !== productIds.length) {
         return res.status(400).json({ message: 'One or more products are invalid' });
       }
 
       const productById = new Map(products.map((p) => [p._id.toString(), p]));
       let subtotal = 0;
+
+      for (const item of normalized) {
+        const product = productById.get(item.productId.toString());
+        const { availableStock, stockLabel } = getInventorySnapshot(product, item);
+        if (availableStock < item.quantity) {
+          return res.status(400).json({
+            message: 'One or more items are out of stock',
+            item: {
+              productId: product._id,
+              name: product.name,
+              requestedQuantity: item.quantity,
+              availableStock,
+              size: item.size || null,
+              color: item.color || null,
+              stockType: stockLabel
+            }
+          });
+        }
+      }
+
       const trustedItems = normalized.map((it) => {
         const product = productById.get(it.productId.toString());
         const linePrice = product.price;
@@ -102,13 +181,19 @@ module.exports = {
         appliedCoupon = coupon;
       }
 
-      const totalAmount = Math.max(0, subtotal - discountAmount);
+      const discountedSubtotal = Math.max(0, subtotal - discountAmount);
+      const shippingAmount = getShipping(discountedSubtotal);
+      const taxAmount = Math.max(0, Math.round(discountedSubtotal * GST_RATE));
+      const totalAmount = discountedSubtotal + shippingAmount + taxAmount;
 
       const order = new Order({
         userId: req.user._id,
         items: trustedItems,
         shippingAddress,
         paymentMethod: normalizedPaymentMethod,
+        subtotalAmount: subtotal,
+        shippingAmount,
+        taxAmount,
         totalAmount,
         paymentId,
         invoiceUrl,
@@ -119,6 +204,13 @@ module.exports = {
         discountValue: appliedCoupon ? appliedCoupon.discountValue : undefined,
         returnEligible: true
       });
+
+      for (const item of normalized) {
+        const product = productById.get(item.productId.toString());
+        decrementInventory(product, item);
+      }
+
+      await Promise.all(products.map((product) => product.save()));
       await order.save();
       return res.status(201).json({ message: 'Order placed', order });
     } catch (err) {

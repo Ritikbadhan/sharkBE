@@ -8,6 +8,48 @@ function asArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
+function parseJsonField(value) {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed || !['[', '{'].includes(trimmed[0])) return value;
+
+  try {
+    return JSON.parse(trimmed);
+  } catch (_err) {
+    return value;
+  }
+}
+
+function normalizeMultipartPayload(payload) {
+  const normalized = { ...payload };
+  [
+    'images',
+    'sizes',
+    'colors',
+    'variants',
+    'productSpecifications'
+  ].forEach((field) => {
+    if (normalized[field] !== undefined) {
+      normalized[field] = parseJsonField(normalized[field]);
+    }
+  });
+
+  return normalized;
+}
+
+function getUploadedImageUrls(req) {
+  const files = req.files || {};
+  const uploadedFiles = [
+    ...asArray(files.images),
+    ...asArray(files.image)
+  ];
+
+  return uploadedFiles.map((file) => {
+    const baseUrl = process.env.PUBLIC_API_URL || `${req.protocol}://${req.get('host')}`;
+    return `${baseUrl}/uploads/${file.filename}`;
+  });
+}
+
 function parsePositiveInt(value, fallback) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 1) return fallback;
@@ -39,7 +81,7 @@ function normalizeVariants(value) {
 }
 
 function normalizeProductPayload(payload) {
-  const normalized = { ...payload };
+  const normalized = normalizeMultipartPayload(payload);
 
   if (normalized.images !== undefined) normalized.images = asArray(normalized.images);
   if (normalized.sizes !== undefined) normalized.sizes = asArray(normalized.sizes);
@@ -54,6 +96,10 @@ module.exports = {
     try {
       if (!req.user || req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
       const payload = normalizeProductPayload(req.body || {});
+      const uploadedImageUrls = getUploadedImageUrls(req);
+      if (uploadedImageUrls.length) {
+        payload.images = [...asArray(payload.images), ...uploadedImageUrls];
+      }
 
       if (!payload.name || payload.price === undefined) {
         return res.status(400).json({ message: 'name and price are required' });
@@ -179,6 +225,11 @@ module.exports = {
       const { id } = req.params;
       const product = await Product.findById(id);
       if (!product) return res.status(404).json({ message: 'Product not found' });
+      const payload = normalizeProductPayload(req.body || {});
+      const uploadedImageUrls = getUploadedImageUrls(req);
+      if (uploadedImageUrls.length) {
+        payload.images = [...asArray(payload.images !== undefined ? payload.images : product.images), ...uploadedImageUrls];
+      }
 
       const updatable = [
         'name',
@@ -207,18 +258,18 @@ module.exports = {
         'categoryId'
       ];
 
-      if (req.body.categoryId !== undefined && req.body.categoryId !== null && !mongoose.Types.ObjectId.isValid(req.body.categoryId)) {
+      if (payload.categoryId !== undefined && payload.categoryId !== null && !mongoose.Types.ObjectId.isValid(payload.categoryId)) {
         return res.status(400).json({ message: 'Invalid categoryId' });
       }
 
       updatable.forEach((field) => {
-        if (req.body[field] !== undefined) {
+        if (payload[field] !== undefined) {
           if (['images', 'sizes', 'colors'].includes(field)) {
-            product[field] = asArray(req.body[field]);
+            product[field] = asArray(payload[field]);
           } else if (field === 'variants') {
-            product[field] = normalizeVariants(req.body[field]);
+            product[field] = normalizeVariants(payload[field]);
           } else {
-            product[field] = req.body[field];
+            product[field] = payload[field];
           }
         }
       });

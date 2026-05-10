@@ -123,7 +123,9 @@ module.exports = {
 
       order.paymentId = razorpayPaymentId;
       order.paymentStatus = 'paid';
-      if (order.orderStatus === 'placed') order.orderStatus = 'confirmed';
+      if (String(order.orderStatus).toLowerCase() === 'placed') {
+        order.orderStatus = 'Confirmed';
+      }
       await order.save();
 
       return res.status(200).json({ message: 'Payment verified', orderId: order._id, paymentId: order.paymentId });
