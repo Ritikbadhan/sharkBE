@@ -864,6 +864,15 @@ paths:
         '200':
           description: User promoted
 
+        /api/admin/returns:
+          get:
+            summary: List all return requests (admin)
+            security:
+              - bearerAuth: []
+            responses:
+              '200':
+                description: Return list
+
 components:
   securitySchemes:
     bearerAuth:

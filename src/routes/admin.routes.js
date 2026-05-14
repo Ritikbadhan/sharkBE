@@ -17,5 +17,7 @@ router.get('/inventory', auth, adminCtrl.listInventory);
 router.put('/inventory', auth, adminCtrl.updateInventory);
 router.get('/dashboard-stats', auth, adminCtrl.dashboardStats);
 router.post('/promote', auth, adminCtrl.promoteUser);
-
+router.get('/returns', auth, adminCtrl.getAllReturnsProducts);
+router.put('/returns/:id/accept', auth, validateObjectId('id'), adminCtrl.acceptReturnRequest);
+router.put('/returns/:id/reject', auth, validateObjectId('id'), adminCtrl.rejectReturnRequest);
 module.exports = router;

@@ -2,6 +2,7 @@ const User = require('../models/User.model');
 const Order = require('../models/Order.model');
 const Product = require('../models/Product.model');
 const Review = require('../models/Review.model');
+const ReturnRequest = require('../models/Return.model');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 
@@ -442,5 +443,100 @@ module.exports = {
       console.error('Promote user error:', err);
       return res.status(500).json({ message: 'Server error' });
     }
+  },
+
+  getAllReturnsProducts: async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const requests = await ReturnRequest
+      .find({})
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      returns: requests
+    });
+
+  } catch (err) {
+    console.error('List returns error:', err);
+
+    return res.status(500).json({
+      message: 'Server error'
+    });
   }
+},
+acceptReturnRequest: async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: 'Unauthorized'
+      });
+    }
+
+    const { id } = req.params;
+
+    const returnRequest = await ReturnRequest.findById(id);
+
+    if (!returnRequest) {
+      return res.status(404).json({
+        message: 'Return request not found'
+      });
+    }
+
+    returnRequest.status = 'Approved';
+
+    await returnRequest.save();
+
+    return res.status(200).json({
+      message: 'Return request approved successfully',
+      returnRequest
+    });
+
+  } catch (err) {
+    console.error('Accept return error:', err);
+
+    return res.status(500).json({
+      message: 'Server error'
+    });
+  }
+},
+rejectReturnRequest: async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: 'Unauthorized'
+      });
+    }
+
+    const { id } = req.params;
+
+    const returnRequest = await ReturnRequest.findById(id);
+
+    if (!returnRequest) {
+      return res.status(404).json({
+        message: 'Return request not found'
+      });
+    }
+
+    // Update status
+    returnRequest.status = 'Rejected';
+    returnRequest.updatedAt = new Date();
+
+    await returnRequest.save();
+
+    return res.status(200).json({
+      message: 'Return request rejected successfully',
+      returnRequest
+    });
+
+  } catch (err) {
+    console.error('Reject return error:', err);
+
+    return res.status(500).json({
+      message: 'Server error'
+    });
+  }
+}
 };
